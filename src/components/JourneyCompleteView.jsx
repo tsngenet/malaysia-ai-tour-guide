@@ -1,14 +1,28 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { getTranslation } from '../lib/i18n.js';
+import { resolveStopDetails } from '../lib/journeyEngine.js';
 import { AppHeader } from './common/AppHeader.jsx';
-import { IconCheck } from './common/Icons.jsx';
+import { IconCheck, IconArrowRight } from './common/Icons.jsx';
 
-export function JourneyCompleteView({ tour, visitedStopIds, language, onReturnHome }) {
+export function JourneyCompleteView({
+  tour,
+  visitedStopIds,
+  language,
+  onRestartTour,
+  onReturnHome
+}) {
   const t = (k) => getTranslation(language, k);
 
-  const stops = tour?.stops || [];
-  // Identify actual visited stops, falling back to all stops if user reached end
-  const exploredStops = stops.filter(s => visitedStopIds.has(s.stopId) || visitedStopIds.size === 0);
+  // Resolve all stops to get actual names and localized titles
+  const allResolvedStops = useMemo(() => {
+    return (tour?.stops || []).map(s => resolveStopDetails(s, language));
+  }, [tour?.stops, language]);
+
+  // Identify visited stops, falling back to all stops if completed
+  const exploredStops = useMemo(() => {
+    const visited = allResolvedStops.filter(s => visitedStopIds && visitedStopIds.has(s.stopId));
+    return visited.length > 0 ? visited : allResolvedStops;
+  }, [allResolvedStops, visitedStopIds]);
 
   return (
     <div className="journey-complete-view-shell">
@@ -51,11 +65,22 @@ export function JourneyCompleteView({ tour, visitedStopIds, language, onReturnHo
           </div>
         </div>
 
-        {/* Action Button */}
-        <div className="keepsake-action-row">
+        {/* Action Buttons */}
+        <div className="keepsake-action-row" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {onRestartTour && (
+            <button
+              type="button"
+              className="btn-primary-pill full-width"
+              onClick={onRestartTour}
+            >
+              <span>Start Live Tour Again</span>
+              <IconArrowRight size={18} />
+            </button>
+          )}
+
           <button
             type="button"
-            className="btn-primary-pill full-width"
+            className="btn-secondary-pill full-width"
             onClick={onReturnHome}
           >
             {t('returnHome')}

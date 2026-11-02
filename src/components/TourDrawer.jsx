@@ -1,9 +1,18 @@
 import React from 'react';
-import { getTranslation } from '../lib/i18n.js';
+import { SUPPORTED_LANGUAGES, getTranslation } from '../lib/i18n.js';
 import { IconClose, IconCheck, IconMapPin } from './common/Icons.jsx';
 import { StatusBadge } from './common/StatusBadge.jsx';
 
-export function TourDrawer({ tour, allStopsWithState, currentIndex, language, onClose, onSelectStop }) {
+export function TourDrawer({
+  tour,
+  allStopsWithState,
+  currentIndex,
+  language,
+  onClose,
+  onSelectStop,
+  onSelectLanguage,
+  onCompleteTour
+}) {
   const t = (k) => getTranslation(language, k);
 
   return (
@@ -23,6 +32,43 @@ export function TourDrawer({ tour, allStopsWithState, currentIndex, language, on
             <IconClose size={20} />
           </button>
         </div>
+
+        {/* Mid-journey Language Switcher */}
+        {onSelectLanguage && (
+          <div
+            className="drawer-lang-selector"
+            style={{
+              display: 'flex',
+              gap: '6px',
+              marginBottom: '14px',
+              flexWrap: 'wrap'
+            }}
+          >
+            {SUPPORTED_LANGUAGES.map((lang) => {
+              const isSelected = language === lang.code;
+              return (
+                <button
+                  key={lang.code}
+                  type="button"
+                  className={`drawer-lang-pill ${isSelected ? 'active' : ''}`}
+                  onClick={() => onSelectLanguage(lang.code)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '999px',
+                    border: isSelected ? '1.5px solid #C8102E' : '1px solid #D9D7D2',
+                    background: isSelected ? '#FFF7E6' : '#FFFFFF',
+                    color: isSelected ? '#A10E1A' : '#1F1F1F',
+                    fontWeight: isSelected ? '700' : '500',
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {lang.flag} {lang.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         <div className="itinerary-timeline-list">
           {allStopsWithState.map((stop, idx) => {
@@ -78,6 +124,23 @@ export function TourDrawer({ tour, allStopsWithState, currentIndex, language, on
             );
           })}
         </div>
+
+        {/* Conclude Journey CTA */}
+        {onCompleteTour && (
+          <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #ECEAE5' }}>
+            <button
+              type="button"
+              className="btn-secondary-pill full-width"
+              onClick={() => {
+                onClose();
+                onCompleteTour();
+              }}
+              style={{ minHeight: '48px', fontSize: '14px' }}
+            >
+              🏁 Conclude Journey & View Keepsake
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -282,6 +282,11 @@ function App() {
           tour={activeTour}
           visitedStopIds={visitedStopIds}
           language={language}
+          onRestartTour={() => {
+            setCurrentStopIndex(0);
+            setVisitedStopIds(new Set());
+            navigateTo(SCREENS.LIVE_TOUR);
+          }}
           onReturnHome={() => {
             setCurrentStopIndex(0);
             setVisitedStopIds(new Set());
@@ -333,6 +338,11 @@ function App() {
           language={language}
           onClose={() => setShowItinerary(false)}
           onSelectStop={(idx) => setCurrentStopIndex(idx)}
+          onSelectLanguage={setLanguage}
+          onCompleteTour={() => {
+            setShowItinerary(false);
+            setScreen(SCREENS.COMPLETED);
+          }}
         />
       )}
     </main>

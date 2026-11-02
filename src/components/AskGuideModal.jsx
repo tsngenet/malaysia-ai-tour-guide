@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { getTranslation } from '../lib/i18n.js';
 import { getGroundedKnowledgeText } from '../data/knowledge.js';
+import { generateGroundedAnswer } from '../lib/guideQAFallback.js';
 import { IconSend, IconClose, IconAsk } from './common/Icons.jsx';
 
 export function AskGuideModal({ currentStop, tour, language, onClose }) {
@@ -73,13 +74,25 @@ export function AskGuideModal({ currentStop, tour, language, onClose }) {
         })
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to query guide.');
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const data = await res.json();
+        if (data.answer) {
+          setAnswer(data.answer);
+          return;
+        }
       }
-      setAnswer(data.answer || 'No response returned from the guide.');
-    } catch (err) {
-      setError(err.message || 'The AI guide server could not be reached.');
+      throw new Error('API server fallback');
+    } catch {
+      // Reliable client-side grounded knowledge answer (covers offline/static hosting)
+      const fallbackAns = generateGroundedAnswer({
+        question: query,
+        placeName: currentStop?.name || '',
+        stop: currentStop,
+        knowledgeContext,
+        language
+      });
+      setAnswer(fallbackAns);
     } finally {
       setLoading(false);
     }

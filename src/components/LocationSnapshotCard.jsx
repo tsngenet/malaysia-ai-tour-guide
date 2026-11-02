@@ -63,12 +63,18 @@ export function LocationSnapshotCard({
   if (currentStatus === JOURNEY_STATUS.HERE) {
     badgeType = 'verified';
     badgeLabel = 'YOU ARE HERE';
+  } else if (currentStatus === JOURNEY_STATUS.APPROACHING) {
+    badgeType = 'approaching';
+    badgeLabel = 'APPROACHING';
   } else if (currentStatus === JOURNEY_STATUS.VISITED || currentStatus === JOURNEY_STATUS.COMPLETED) {
     badgeType = 'local';
     badgeLabel = 'VISITED';
-  } else if (currentStatus === JOURNEY_STATUS.UPCOMING) {
+  } else if (currentStatus === JOURNEY_STATUS.UPCOMING && distanceMeters !== null) {
     badgeType = 'next';
     badgeLabel = 'UPCOMING';
+  } else {
+    badgeType = 'approaching';
+    badgeLabel = 'APPROACHING';
   }
 
   const isAudioPlaying = speechState.isPlaying && !speechState.isPaused;
@@ -150,13 +156,11 @@ export function LocationSnapshotCard({
       <div className="snapshot-content-body">
         <div className="snapshot-header-block">
           <h2 className="snapshot-place-name">{attractionName}</h2>
-          {distanceFormatted && (
-            <div className="snapshot-distance-row">
-              <IconMapPin size={16} />
-              <span>{distanceFormatted}</span>
-              {isGpsActive && <span className="gps-live-dot" title="GPS Active" />}
-            </div>
-          )}
+          <div className="snapshot-distance-row">
+            <IconMapPin size={16} />
+            <span>{distanceFormatted || (isGpsActive ? 'Locating position...' : 'Approaching Attraction')}</span>
+            {isGpsActive && <span className="gps-live-dot" title="GPS Active" />}
+          </div>
         </div>
 
         {/* Short Approved Description */}

@@ -41,9 +41,10 @@ export function LiveTourView({
     };
   }, []);
 
-  // Reset narration toggle on stop change
+  // Reset narration toggle and stop previous audio on stop change
   useEffect(() => {
     setShowFullNarration(false);
+    speechEngine.stop();
   }, [currentStop?.stopId]);
 
   const approvedNotes = currentStop?.placeId ? getApprovedPlaceKnowledge(currentStop.placeId) : [];

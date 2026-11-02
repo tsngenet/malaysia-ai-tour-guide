@@ -37,6 +37,13 @@ export const INITIAL_TOURS = {
         },
         coordinates: { lat: 3.1578, lng: 101.7119 },
         triggerRadiusMeters: 500,
+        heroVisual: {
+          type: 'photo',
+          imageUrl: '',
+          alt: 'Kuala Lumpur City Center',
+          attribution: 'Tourism Malaysia',
+          focalPoint: 'center'
+        },
         customNarration: {
           en: 'Good morning and welcome aboard! Today we explore the federal administrative heart of Putrajaya and the centuries-old UNESCO heritage city of Melaka.',
           zh: '早上好，欢迎踏上今日的旅程！今天我们将一同探访马来西亚联邦行政中心布城，以及列入联合国教科文组织世界遗产的古城马六甲。',
@@ -72,6 +79,13 @@ export const INITIAL_TOURS = {
         },
         coordinates: { lat: 2.3789, lng: 102.3021 },
         triggerRadiusMeters: 800,
+        heroVisual: {
+          type: 'photo',
+          imageUrl: '',
+          alt: 'Ayer Keroh Highway R&R Rest Area',
+          attribution: 'PLUS Expressways',
+          focalPoint: 'center'
+        },
         customNarration: {
           en: 'We are passing the Ayer Keroh Rest and Service Area along the North-South Expressway. An ideal stop for quick refreshments, clean restrooms, or local Malaysian snacks like curry puffs and fresh fruit.',
           zh: '我们正在途经南北大道上的爱极乐休息站（Ayer Keroh R&R）。这里是停车休整、享用洗手间、品尝新鲜热带水果和咖喱角（Curry Puff）的绝佳停歇点。',
@@ -107,6 +121,13 @@ export const INITIAL_TOURS = {
         },
         coordinates: { lat: 3.1578, lng: 101.7119 },
         triggerRadiusMeters: 600,
+        heroVisual: {
+          type: 'photo',
+          imageUrl: '',
+          alt: 'Kuala Lumpur Hotel Return',
+          attribution: 'Tourism Malaysia',
+          focalPoint: 'center'
+        },
         customNarration: {
           en: 'We have returned to Kuala Lumpur! We hope you loved discovering the rich heritage of Putrajaya and Melaka today. Thank you for travelling with us!',
           zh: '我们已顺利返回吉隆坡！希望您度过了难忘而充实的一天。感谢您选择我们的实时AI随行导游，祝您在马旅行愉快！',

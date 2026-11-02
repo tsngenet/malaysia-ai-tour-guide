@@ -230,3 +230,17 @@ export function moderateKnowledge(knowledgeId, newStatus, reviewerName = 'Operat
   saveKnowledgeStore(updated);
   return updated;
 }
+
+
+/**
+ * Builds a grounded textual summary of approved knowledge for AI context injection
+ */
+export function getGroundedKnowledgeText(placeId, lang = 'en') {
+  if (!placeId) return '';
+  const approved = getApprovedPlaceKnowledge(placeId);
+  if (!approved.length) return '';
+  return approved.map(item => {
+    const noteText = item.content?.[lang] || item.content?.en || '';
+    return `[${item.title}]: ${noteText}`;
+  }).join('\n');
+}

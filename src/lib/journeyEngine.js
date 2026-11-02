@@ -36,7 +36,8 @@ export function resolveStopDetails(stop, lang = 'en') {
       narration: stop.customNarration?.[lang] || stop.customNarration?.en || '',
       interestingFacts: [],
       facilities: null,
-      sourceReferences: []
+      sourceReferences: [],
+      heroVisual: stop.heroVisual || null
     };
   }
 
@@ -69,7 +70,8 @@ export function resolveStopDetails(stop, lang = 'en') {
     interestingFacts: (attraction.interestingFacts || []).map(f => f[lang] || f.en),
     facilities: attraction.facilities,
     sourceReferences: attraction.sourceReferences || [],
-    lastVerified: attraction.lastVerified
+    lastVerified: attraction.lastVerified,
+    heroVisual: attraction.heroVisual || null
   };
 }
 

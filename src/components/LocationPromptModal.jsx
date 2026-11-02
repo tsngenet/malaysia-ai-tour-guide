@@ -1,28 +1,32 @@
 import React from 'react';
 import { getTranslation } from '../lib/i18n.js';
+import { IconMapPin } from './common/Icons.jsx';
 
 export function LocationPromptModal({ language, onAllowLocation, onContinueManual }) {
   const t = (k) => getTranslation(language, k);
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal-card">
-        <div className="modal-icon-header">📍</div>
-        <h2>{t('locationPrePromptTitle')}</h2>
+    <div className="modal-backdrop-shell">
+      <div className="location-prompt-card">
+        <div className="location-prompt-icon-circle">
+          <IconMapPin size={32} />
+        </div>
+
+        <h2 className="location-prompt-title">{t('locationPrePromptTitle')}</h2>
         
-        <p className="modal-body-text">
+        <p className="location-prompt-body">
           {t('locationPrePromptDesc')}
         </p>
 
-        <div className="privacy-callout">
-          <span className="privacy-badge">🔒 Privacy First</span>
+        <div className="location-privacy-box">
+          <span className="privacy-badge-pill">🔒 Privacy First</span>
           <p>{t('locationPrePromptNote')}</p>
         </div>
 
-        <div className="modal-buttons">
+        <div className="location-prompt-actions">
           <button
             type="button"
-            className="btn-primary btn-large"
+            className="btn-primary-pill full-width"
             onClick={onAllowLocation}
           >
             {t('allowLocationBtn')}
@@ -30,7 +34,7 @@ export function LocationPromptModal({ language, onAllowLocation, onContinueManua
           
           <button
             type="button"
-            className="btn-secondary"
+            className="btn-secondary-pill full-width"
             onClick={onContinueManual}
           >
             {t('continueWithoutGps')}

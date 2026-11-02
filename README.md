@@ -1,23 +1,103 @@
-# Malaysia AI Tour Guide v2
+# Malaysia AI Live Tour Guide (mytguide)
 
-## What works
-- Mobile-first React/Vite interface
-- GPS location and nearest-stop calculation
-- Batu Caves, Putrajaya and Melaka starter route
-- Browser speech narration
-- PWA manifest + service worker
-- Ask the Guide frontend connected to `/api/ask`
-- Node server suitable for a single-service deployment after build
+A standalone, passenger-facing digital tour companion designed for travelers inside private-hire and tour vehicles across Malaysia.
 
-## Local run
-1. `npm install`
-2. `npm run dev` for frontend development
-3. `npm run build`
-4. `npm start` to serve the built PWA and API
+## Key Features
+- **Mobile-First Progressive Web App (PWA)**: Standalone manifest, responsive viewport, and offline service worker foundation.
+- **Location-Aware Journey Engine**: Proximity detection using local device GPS and Haversine calculations without continuous external map API billing.
+- **Static Location Snapshot Card ("Postcard")**: Visual recognition card displaying static satellite, aerial, or photo imagery with location pin, journey status, distance, audio narration, and Ask AI controls.
+- **Vetted Attraction Library**: Covers Batu Caves, Putra Mosque, Perdana Putra, Dutch Square / Stadthuys, A Famosa, and Jonker Street with multilingual stories and facilities.
+- **Multilingual Support**: 5 languages (English, 中文, Bahasa Melayu, 日本語, 한국어).
+- **Grounded AI Guide (`/api/ask`)**: Server-side AI provider layer (Google Gemini 1.5 Flash / OpenAI compatible) strictly grounded in vetted Malaysian cultural knowledge.
+- **Audio Narration Engine**: Vehicle-cadenced Text-to-Speech (TTS) with Listen, Pause, Resume, and Replay.
+- **Operator Playlist Tour Builder**: Reorder stops, tune trigger radii, generate passenger links, and produce scannable vehicle QR codes.
+- **Knowledge Moderation Queue**: Driver practical notes and passenger submissions strictly enter `pending_review`.
 
-## AI configuration
-The server expects two environment variables:
-- `AI_ENDPOINT`
-- `AI_API_KEY`
+---
 
-The exact request/response mapping depends on the AI provider you select. Never put the API key in `src/`.
+## Static Location Snapshot Configuration
+
+The tour guide uses an attraction-centred presentation postcard to help passengers visually recognize upcoming landmarks without turning the app into an interactive driver navigation tool.
+
+### Provider Configuration
+The static map provider is controlled via environment variables in `.env`:
+
+```bash
+# Default: 'none' (Recommended)
+VITE_STATIC_MAP_PROVIDER=none
+```
+
+- **`none` (Default)**: Uses approved local attraction visuals from `src/data/attractions.js` (or an elegant topographic SVG fallback). Zero external billing, zero map API keys needed, and 100% offline-ready.
+- **`google`**: Fetches satellite or aerial snapshots on demand via the Google Maps Static API.
+
+### Providing Approved Local Attraction Images
+To add or update photography or aerial snapshots for an attraction without any external API calls:
+1. Edit `src/data/attractions.js`.
+2. Update the `heroVisual` object of the attraction:
+   ```javascript
+   heroVisual: {
+     type: 'satellite', // 'satellite' | 'aerial' | 'photo'
+     imageUrl: '/assets/images/putra-mosque-aerial.jpg',
+     fallbackUrl: '',
+     alt: 'Aerial perspective of Putra Mosque and Putrajaya Lake',
+     attribution: 'Perbadanan Putrajaya',
+     focalPoint: 'center'
+   }
+   ```
+3. If no image is supplied or if loading fails, the system renders the built-in SVG topographic contour pattern with zero broken image icons.
+
+### Enabling Google Maps Static API (Optional)
+If you wish to enable Google Maps Static API satellite snapshots:
+1. In Google Cloud Console, enable **Maps Static API**.
+2. Create an API key with **strict restrictions**:
+   - **Application restriction**: HTTP referrers (e.g. `https://<your-project>.web.app/*`, `http://localhost:*`).
+   - **API restriction**: Restrict key to *Maps Static API* only.
+3. Add to `.env`:
+   ```bash
+   VITE_STATIC_MAP_PROVIDER=google
+   VITE_GOOGLE_MAPS_API_KEY=your_restricted_api_key_here
+   ```
+4. Rebuild the frontend bundle with `npm run build`.
+
+---
+
+## Local Development & Testing
+
+1. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+2. **Run local dev server**:
+   ```bash
+   npm run dev
+   ```
+
+3. **Run integration test suite**:
+   ```bash
+   npm test
+   ```
+
+4. **Build production bundle**:
+   ```bash
+   npm run build
+   ```
+
+5. **Start Node server (API + Static PWA)**:
+   ```bash
+   npm start
+   ```
+
+---
+
+## Firebase Hosting Deployment
+
+Firebase Hosting deploys the compiled `dist/` production directory as configured in `firebase.json`:
+
+```bash
+# 1. Build the production bundle
+npm run build
+
+# 2. Deploy to Firebase Hosting
+firebase deploy --only hosting
+```

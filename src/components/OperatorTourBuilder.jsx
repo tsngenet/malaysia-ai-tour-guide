@@ -1,16 +1,20 @@
 import React, { useState } from 'react';
 import { ATTRACTIONS } from '../data/attractions.js';
-import { TOURS, DEFAULT_TOUR_ID } from '../data/tours.js';
+import { TOURS, DEFAULT_TOUR_ID, getToursStore, saveTourToStore } from '../data/tours.js';
 import { SUPPORTED_LANGUAGES } from '../lib/i18n.js';
 
-export function OperatorTourBuilder({ onClose, onSwitchToReview }) {
-  const [activeTour, setActiveTour] = useState(TOURS[DEFAULT_TOUR_ID]);
+export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
+  const [activeTour, setActiveTour] = useState(() => {
+    const store = getToursStore();
+    return store[DEFAULT_TOUR_ID] || TOURS[DEFAULT_TOUR_ID];
+  });
   const [stops, setStops] = useState([...activeTour.stops]);
   const [titleEn, setTitleEn] = useState(activeTour.title?.en || '');
   const [selectedLanguages, setSelectedLanguages] = useState(activeTour.availableLanguages || ['en', 'zh', 'ms']);
   const [newAttractionKey, setNewAttractionKey] = useState('batu-caves');
   const [showQrModal, setShowQrModal] = useState(false);
   const [saveMessage, setSaveMessage] = useState('');
+  const [copied, setCopied] = useState(false);
 
   // Move stop up/down
   function moveStop(index, direction) {
@@ -72,12 +76,36 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview }) {
   }
 
   function handleSaveTour() {
-    activeTour.title.en = titleEn;
-    activeTour.stops = stops;
-    activeTour.availableLanguages = selectedLanguages;
-    setSaveMessage('Tour playlist saved and published successfully!');
-    setTimeout(() => setSaveMessage(''), 3000);
+    const updated = {
+      ...activeTour,
+      title: {
+        ...activeTour.title,
+        en: titleEn
+      },
+      stops,
+      availableLanguages: selectedLanguages,
+      lastUpdated: new Date().toISOString()
+    };
+    setActiveTour(updated);
+    saveTourToStore(updated);
+    setSaveMessage('Tour playlist saved and published to storage successfully!');
+    setTimeout(() => setSaveMessage(''), 3500);
   }
+
+  function handleCopyLink() {
+    const origin = (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.includes('localhost') && window.location.origin !== 'null')
+      ? window.location.origin
+      : 'https://msiatguide.web.app';
+    const link = activeTour.passengerLink || `${origin}/?tour=${activeTour.tourId}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(link).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    }
+  }
+
+  const passengerTestUrl = `/?tour=${activeTour.tourId}`;
 
   return (
     <div className="operator-container">
@@ -143,7 +171,7 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview }) {
 
         <div className="passenger-share-bar">
           <div>
-            <b>Passenger Link:</b> <code>{activeTour.passengerLink}</code>
+            <b>Passenger Link:</b> <code>{passengerTestUrl}</code>
           </div>
           <button
             type="button"
@@ -204,16 +232,16 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview }) {
                     type="button"
                     disabled={idx === 0}
                     onClick={() => moveStop(idx, -1)}
-                    className="btn-move"
+                    className="btn-arrow"
                   >
                     ▲
                   </button>
-                  <span className="playlist-index">{idx + 1}</span>
+                  <span className="playlist-order-num">{idx + 1}</span>
                   <button
                     type="button"
                     disabled={idx === stops.length - 1}
                     onClick={() => moveStop(idx, 1)}
-                    className="btn-move"
+                    className="btn-arrow"
                   >
                     ▼
                   </button>
@@ -222,18 +250,23 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview }) {
                 <div className="playlist-content">
                   <div className="playlist-title-row">
                     <b>{stopName}</b>
-                    {stop.isCustom && <span className="badge-custom-stop">Custom</span>}
+                    {stop.isCustom ? (
+                      <span className="tag-custom">Custom Stop</span>
+                    ) : (
+                      <span className="tag-attraction">Vetted Attraction</span>
+                    )}
                   </div>
-                  <div className="playlist-meta-row">
-                    <label>Trigger Radius:</label>
+
+                  <div className="playlist-trigger-row">
+                    <label>Proximity Trigger Radius:</label>
                     <input
                       type="number"
-                      className="input-radius"
                       value={stop.triggerRadiusMeters || 500}
                       onChange={(e) => updateTriggerRadius(idx, e.target.value)}
-                      step={50}
+                      className="input-radius"
                       min={100}
-                      max={2000}
+                      max={5000}
+                      step={50}
                     />
                     <span>meters</span>
                   </div>
@@ -274,7 +307,6 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview }) {
             <p>Display or print this QR in the vehicle for passengers to scan with any phone camera.</p>
             
             <div className="qr-box">
-              {/* Clean SVG QR mockup representation */}
               <svg viewBox="0 0 160 160" width="160" height="160" className="qr-svg">
                 <rect width="160" height="160" fill="#fff" />
                 {/* Outer corners */}
@@ -303,16 +335,37 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview }) {
             </div>
 
             <div className="qr-link-display">
-              <code>{activeTour.passengerLink}</code>
+              <code>{activeTour.passengerLink || passengerTestUrl}</code>
             </div>
 
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => setShowQrModal(false)}
-            >
-              Done
-            </button>
+            <div className="modal-actions-stacked">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleCopyLink}
+              >
+                {copied ? '✓ Link Copied!' : '📋 Copy Passenger Link'}
+              </button>
+              {onOpenTour && (
+                <button
+                  type="button"
+                  className="btn-accent"
+                  onClick={() => {
+                    setShowQrModal(false);
+                    onOpenTour(activeTour.tourId);
+                  }}
+                >
+                  🚀 Test Tour Flow Now
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn-subtle"
+                onClick={() => setShowQrModal(false)}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

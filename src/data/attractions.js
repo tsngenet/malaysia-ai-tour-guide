@@ -51,7 +51,15 @@ export const ATTRACTIONS = {
       dressCode: 'Shoulders and knees must be covered to enter temple caverns; sarongs can be rented on-site.'
     },
     sourceReferences: ['Tourism Malaysia', 'National Heritage Department (Jabatan Warisan Negara)'],
-    lastVerified: '2025-06-15'
+    lastVerified: '2025-06-15',
+    heroVisual: {
+      type: 'aerial',
+      imageUrl: '',
+      fallbackUrl: '',
+      alt: 'Aerial view of Batu Caves limestone hill and golden Murugan statue',
+      attribution: 'Jabatan Warisan Negara',
+      focalPoint: 'center'
+    }
   },
 
   'putra-mosque': {
@@ -94,7 +102,15 @@ export const ATTRACTIONS = {
       dressCode: 'Free robes (robe coverings) are provided for non-Muslim visitors at the entrance counter.'
     },
     sourceReferences: ['Perbadanan Putrajaya', 'Department of Islamic Development Malaysia (JAKIM)'],
-    lastVerified: '2025-07-10'
+    lastVerified: '2025-07-10',
+    heroVisual: {
+      type: 'satellite',
+      imageUrl: '',
+      fallbackUrl: '',
+      alt: 'Satellite view of rose-tinted Putra Mosque on the waterfront of Putrajaya Lake',
+      attribution: 'Perbadanan Putrajaya',
+      focalPoint: 'center'
+    }
   },
 
   'perdana-putra': {
@@ -136,7 +152,15 @@ export const ATTRACTIONS = {
       pickupSuitability: 'Roundabout driveway for quick photo stops.'
     },
     sourceReferences: ['Prime Minister’s Department of Malaysia (JPM)', 'Perbadanan Putrajaya'],
-    lastVerified: '2025-05-20'
+    lastVerified: '2025-05-20',
+    heroVisual: {
+      type: 'aerial',
+      imageUrl: '',
+      fallbackUrl: '',
+      alt: 'Aerial view of Perdana Putra administrative complex and Dataran Putra',
+      attribution: 'Jabatan Perdana Menteri',
+      focalPoint: 'center'
+    }
   },
 
   'dutch-square': {
@@ -178,7 +202,15 @@ export const ATTRACTIONS = {
       pickupSuitability: 'Drop-off bay opposite the Tan Beng Swee clocktower.'
     },
     sourceReferences: ['Melaka World Heritage Office', 'Perbadanan Muzium Melaka (PERZIM)'],
-    lastVerified: '2025-06-01'
+    lastVerified: '2025-06-01',
+    heroVisual: {
+      type: 'photo',
+      imageUrl: '',
+      fallbackUrl: '',
+      alt: 'Historic terracotta-red Dutch Square and Stadthuys in Melaka UNESCO heritage zone',
+      attribution: 'Melaka World Heritage Office',
+      focalPoint: 'center'
+    }
   },
 
   'a-famosa': {
@@ -220,7 +252,15 @@ export const ATTRACTIONS = {
       pickupSuitability: 'Drop-off bay at Jalan Kota museum row.'
     },
     sourceReferences: ['National Heritage Department', 'UNESCO World Heritage Centre'],
-    lastVerified: '2025-05-18'
+    lastVerified: '2025-05-18',
+    heroVisual: {
+      type: 'photo',
+      imageUrl: '',
+      fallbackUrl: '',
+      alt: 'Porta de Santiago historical stone fortress gate at the base of St. Paul Hill',
+      attribution: 'Jabatan Warisan Negara',
+      focalPoint: 'center'
+    }
   },
 
   'jonker-street': {
@@ -262,6 +302,23 @@ export const ATTRACTIONS = {
       pickupSuitability: 'Drop-off at the river bridge junction near San Shu Gong confectionery building.'
     },
     sourceReferences: ['Melaka Historic City Council (MBMB)', 'Melaka Tourism'],
-    lastVerified: '2025-07-01'
+    lastVerified: '2025-07-01',
+    heroVisual: {
+      type: 'photo',
+      imageUrl: '',
+      fallbackUrl: '',
+      alt: 'Jonker Street heritage streetscape, Baba-Nyonya shophouses and weekend night market',
+      attribution: 'Melaka Tourism',
+      focalPoint: 'center'
+    }
   }
 };
+
+export function getAttractionById(placeId) {
+  if (!placeId) return null;
+  return ATTRACTIONS[placeId] || null;
+}
+
+export function getAllAttractions() {
+  return Object.values(ATTRACTIONS);
+}

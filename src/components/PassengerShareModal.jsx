@@ -1,14 +1,23 @@
 import React, { useState } from 'react';
 import { getTranslation } from '../lib/i18n.js';
 import { submitPassengerContribution } from '../data/knowledge.js';
+import { IconClose, IconCheck } from './common/Icons.jsx';
 
 export function PassengerShareModal({ currentStop, language, onClose, onSubmitted }) {
-  const [tipType, setTipType] = useState('driver_practical');
+  const [selectedCategory, setSelectedCategory] = useState('practical_tip');
   const [comment, setComment] = useState('');
-  const [name, setName] = useState('');
+  const [submitterName, setSubmitterName] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
   const t = (k) => getTranslation(language, k);
+
+  const contributionCategories = [
+    { id: 'practical_tip', label: 'Share a practical / local tip', icon: '💡' },
+    { id: 'wanted_to_know', label: 'Something I wanted to know', icon: '❓' },
+    { id: 'suggest_place', label: 'Suggest a place', icon: '📍' },
+    { id: 'interesting_fact', label: 'Something interesting', icon: '✨' },
+    { id: 'other_comment', label: 'Other comment', icon: '💬' }
+  ];
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -16,9 +25,9 @@ export function PassengerShareModal({ currentStop, language, onClose, onSubmitte
 
     submitPassengerContribution({
       placeId: currentStop?.placeId || 'general',
-      tipType,
+      tipType: selectedCategory,
       comment: comment.trim(),
-      submitterName: name,
+      submitterName: submitterName.trim() || 'Fellow Traveler',
       language
     });
 
@@ -26,86 +35,93 @@ export function PassengerShareModal({ currentStop, language, onClose, onSubmitte
     if (onSubmitted) onSubmitted();
     setTimeout(() => {
       onClose();
-    }, 2000);
+    }, 2200);
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card modal-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-handle" />
+    <div className="modal-backdrop-shell" onClick={onClose}>
+      <div className="share-modal-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-sheet-dragger" />
 
-        <div className="sheet-header">
-          <div>
-            <small className="sheet-tag">COMMUNITY FEEDBACK</small>
-            <h2>{t('shareSomething')}</h2>
-            <p className="sheet-subtitle">
-              📍 {currentStop?.name || 'General Tour Feedback'}
+        <div className="modal-sheet-header">
+          <div className="header-info-group">
+            <h2 className="modal-title">Share Something</h2>
+            <p className="modal-subtitle">
+              Help make future journeys better. Your contribution will be reviewed before being shared.
             </p>
+            {currentStop?.name && (
+              <span className="location-context-tag">
+                📍 {currentStop.name}
+              </span>
+            )}
           </div>
-          <button type="button" className="btn-close" onClick={onClose}>✕</button>
+          <button type="button" className="btn-modal-close" onClick={onClose} aria-label="Close">
+            <IconClose size={20} />
+          </button>
         </div>
 
         {submitted ? (
-          <div className="submission-success">
-            <span className="success-icon">✅</span>
-            <h3>{t('contributionReceived')}</h3>
-            <p className="success-note">
-              Thank you for contributing to fellow travelers in Malaysia!
-            </p>
+          <div className="share-success-box">
+            <div className="share-success-icon-wrap">
+              <IconCheck size={32} />
+            </div>
+            <h3>Thank You!</h3>
+            <p>Your contribution was received and queued for review. Every tip helps future passengers understand Malaysia better.</p>
           </div>
         ) : (
-          <form className="share-form" onSubmit={handleSubmit}>
-            <p className="share-explainer">{t('sharePrompt')}</p>
-
-            <div className="form-group">
-              <label className="form-label">{t('shareTypeLabel')}</label>
-              <div className="tip-type-selector">
-                {[
-                  { id: 'driver_practical', label: `🚗 ${t('shareTip')}` },
-                  { id: 'suggest_place', label: `📍 ${t('sharePlace')}` },
-                  { id: 'passenger_question', label: `❓ ${t('shareQuestion')}` },
-                  { id: 'passenger_comment', label: `💬 ${t('shareComment')}` }
-                ].map((type) => (
+          <form className="share-compact-form" onSubmit={handleSubmit}>
+            {/* Category Choices */}
+            <div className="category-choices-list">
+              {contributionCategories.map((cat) => {
+                const isSelected = selectedCategory === cat.id;
+                return (
                   <button
-                    key={type.id}
+                    key={cat.id}
                     type="button"
-                    className={`tip-chip ${tipType === type.id ? 'active' : ''}`}
-                    onClick={() => setTipType(type.id)}
+                    className={`category-choice-item ${isSelected ? 'selected' : ''}`}
+                    onClick={() => setSelectedCategory(cat.id)}
+                    aria-pressed={isSelected}
                   >
-                    {type.label}
+                    <span className="cat-icon">{cat.icon}</span>
+                    <span className="cat-label">{cat.label}</span>
+                    {isSelected && <span className="cat-check">✓</span>}
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
 
-            <div className="form-group">
+            {/* Note / Content Input */}
+            <div className="share-input-block">
+              <label className="input-field-label">Your Note or Observation</label>
               <textarea
-                className="form-textarea"
-                rows={4}
+                className="share-textarea"
+                rows={3}
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                placeholder={t('shareContentPlaceholder')}
+                placeholder="Write your tip, question, or note here..."
                 required
               />
             </div>
 
-            <div className="form-group">
+            {/* Optional Name */}
+            <div className="share-input-block">
+              <label className="input-field-label">Your Name (Optional)</label>
               <input
                 type="text"
-                className="form-input"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t('shareNamePlaceholder')}
+                className="share-text-input"
+                value={submitterName}
+                onChange={(e) => setSubmitterName(e.target.value)}
+                placeholder="e.g. Alex"
               />
             </div>
 
-            <div className="form-actions">
+            <div className="share-submit-row">
               <button
                 type="submit"
                 disabled={!comment.trim()}
-                className="btn-primary btn-large"
+                className="btn-primary-pill"
               >
-                {t('submitContribution')}
+                Submit Contribution
               </button>
             </div>
           </form>

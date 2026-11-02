@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { getTranslation } from '../lib/i18n.js';
+import { getGroundedKnowledgeText } from '../data/knowledge.js';
+import { IconSend, IconClose, IconAsk } from './common/Icons.jsx';
 
 export function AskGuideModal({ currentStop, tour, language, onClose }) {
   const [question, setQuestion] = useState('');
@@ -11,29 +13,34 @@ export function AskGuideModal({ currentStop, tour, language, onClose }) {
 
   const sampleQuestionsByLang = {
     en: [
-      'What are the most popular photo spots here?',
+      `What is the history of ${currentStop?.name || 'this landmark'}?`,
       'What local food or snacks should I try nearby?',
-      'What is the dress code or cultural etiquette here?'
+      'What is the dress code or visitor etiquette here?',
+      'What are the best photo angles?'
     ],
     zh: [
-      '这里最佳的拍照取景点在哪里？',
+      `关于${currentStop?.name || '这里'}有什么历史故事？`,
       '这附近有什么必吃的地道美食或小吃？',
-      '参观这里有什么着装要求或文化礼仪？'
+      '参观这里有什么着装要求或文化礼仪？',
+      '有哪些绝佳的拍照取景角度？'
     ],
     ms: [
-      'Di manakah tempat bergambar paling menarik di sini?',
+      `Apakah sejarah di sebalik ${currentStop?.name || 'tempat ini'}?`,
       'Apakah makanan atau snek tempatan yang patut dicuba berdekatan?',
-      'Apakah etika pakaian atau pantang larang semasa melawat?'
+      'Apakah etika pakaian atau pantang larang semasa melawat?',
+      'Di manakah tempat bergambar paling menarik?'
     ],
     ja: [
-      'ここでおすすめの写真撮影スポットはどこですか？',
+      `${currentStop?.name || 'ここ'}の歴史や背景を教えてください。`,
       '周辺で試すべき名物グルメやスナックは何ですか？',
-      '訪問時の服装規定やマナーを教えてください。'
+      '訪問時の服装規定やマナーを教えてください。',
+      'おすすめの写真撮影スポットはどこですか？'
     ],
     ko: [
-      '이곳의 가장 멋진 포토존은 어디인가요?',
+      `${currentStop?.name || '이곳'}의 역사와 배경은 무엇인가요?`,
       '근처에서 꼭 맛봐야 할 로컬 음식이나 간식은 무엇인가요?',
-      '방문 시 복장 규정이나 지켜야 할 예절이 있나요?'
+      '방문 시 복장 규정이나 지켜야 할 예절이 있나요?',
+      '가장 멋진 사진 촬영 포인트는 어디인가요?'
     ]
   };
 
@@ -48,6 +55,10 @@ export function AskGuideModal({ currentStop, tour, language, onClose }) {
     setAnswer('');
     if (qText) setQuestion(qText);
 
+    const knowledgeContext = currentStop?.placeId
+      ? getGroundedKnowledgeText(currentStop.placeId, language)
+      : '';
+
     try {
       const res = await fetch('/api/ask', {
         method: 'POST',
@@ -57,7 +68,8 @@ export function AskGuideModal({ currentStop, tour, language, onClose }) {
           place: currentStop?.name || 'General Malaysia Tour',
           placeId: currentStop?.placeId || null,
           tourId: tour?.tourId || 'kl-putrajaya-melaka-day-tour',
-          language
+          language,
+          knowledgeContext
         })
       });
 
@@ -74,86 +86,97 @@ export function AskGuideModal({ currentStop, tour, language, onClose }) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card modal-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-handle" />
-        
-        <div className="sheet-header">
-          <div>
-            <small className="sheet-tag">AI LIVE ASSISTANT</small>
-            <h2>{t('askGuide')}</h2>
-            <p className="sheet-subtitle">
-              📍 {currentStop?.name || 'Malaysia Journey'}
+    <div className="modal-backdrop-shell" onClick={onClose}>
+      <div className="ask-modal-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-sheet-dragger" />
+
+        <div className="modal-sheet-header">
+          <div className="header-info-group">
+            <h2 className="modal-title">{t('askGuide')}</h2>
+            <p className="modal-subtitle">
+              Curious about what you're seeing? Ask anything.
             </p>
+            {currentStop?.name && (
+              <span className="location-context-tag">
+                📍 {currentStop.name}
+              </span>
+            )}
           </div>
-          <button type="button" className="btn-close" onClick={onClose}>✕</button>
+          <button type="button" className="btn-modal-close" onClick={onClose} aria-label="Close">
+            <IconClose size={20} />
+          </button>
         </div>
 
-        <div className="quick-questions">
-          <small className="quick-label">SUGGESTED QUESTIONS</small>
-          <div className="quick-list">
+        {/* Suggested Question Chips */}
+        <div className="suggested-questions-scroll">
+          <span className="suggested-chips-heading">SUGGESTED QUESTIONS</span>
+          <div className="chips-row">
             {samplePrompts.map((prompt, idx) => (
               <button
                 key={idx}
                 type="button"
-                className="quick-chip"
+                className="guide-question-chip"
                 onClick={() => handleAsk(prompt)}
               >
-                💬 {prompt}
+                <span>{prompt}</span>
               </button>
             ))}
           </div>
         </div>
 
+        {/* Responses Display */}
+        <div className="ask-chat-output-area">
+          {loading && (
+            <div className="guide-response-card loading">
+              <span className="response-spinner" />
+              <p>Consulting Malaysian cultural archives...</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="guide-response-card error">
+              <p>⚠️ {error}</p>
+            </div>
+          )}
+
+          {answer && (
+            <div className="guide-response-card success">
+              <div className="guide-response-header">
+                <span className="guide-badge-pill">🇲🇾 Vetted Knowledge</span>
+              </div>
+              <p className="guide-answer-text">{answer}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Question Input Field */}
         <form
-          className="ask-form"
+          className="ask-input-form"
           onSubmit={(e) => {
             e.preventDefault();
             handleAsk();
           }}
         >
-          <div className="ask-input-row">
+          <div className="ask-pill-input-box">
             <input
               type="text"
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
-              placeholder={t('askGuidePlaceholder')}
-              className="ask-input"
+              placeholder="Ask a question..."
+              className="ask-pill-text-input"
               disabled={loading}
               autoFocus
             />
             <button
               type="submit"
               disabled={loading || !question.trim()}
-              className="btn-primary ask-submit-btn"
+              className="btn-send-question"
+              aria-label="Send question"
             >
-              {loading ? t('asking') : t('askBtn')}
+              <IconSend size={18} />
             </button>
           </div>
         </form>
-
-        {loading && (
-          <div className="answer-card loading-state">
-            <span className="pulse-spinner" />
-            <p>{t('asking')}</p>
-          </div>
-        )}
-
-        {error && (
-          <div className="answer-card error-state">
-            <p>⚠️ {error}</p>
-          </div>
-        )}
-
-        {answer && (
-          <div className="answer-card success-state">
-            <div className="answer-header">
-              <span className="guide-avatar">🇲🇾</span>
-              <b>Guide Assistant</b>
-            </div>
-            <p className="answer-text">{answer}</p>
-          </div>
-        )}
       </div>
     </div>
   );

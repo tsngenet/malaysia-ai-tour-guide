@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { getTranslation } from '../lib/i18n.js';
-import { JOURNEY_STATUS } from '../lib/journeyEngine.js';
 import { speechEngine } from '../lib/speechEngine.js';
 import { getApprovedPlaceKnowledge } from '../data/knowledge.js';
+import { AppHeader } from './common/AppHeader.jsx';
+import { BottomNav } from './common/BottomNav.jsx';
+import { LocationSnapshotCard } from './LocationSnapshotCard.jsx';
+import { NextStopCard } from './common/NextStopCard.jsx';
+import { IconShare, IconArrowRight } from './common/Icons.jsx';
 
 export function LiveTourView({
   tour,
@@ -18,10 +22,12 @@ export function LiveTourView({
   onNextStop,
   onPrevStop,
   onCompleteTour,
-  onBackToWelcome
+  onBackToWelcome,
+  onViewPlace
 }) {
   const [speechState, setSpeechState] = useState({ isPlaying: false, isPaused: false });
   const [showFullNarration, setShowFullNarration] = useState(false);
+  const [activeTab, setActiveTab] = useState('live');
 
   const t = (k) => getTranslation(language, k);
 
@@ -35,12 +41,12 @@ export function LiveTourView({
     };
   }, []);
 
-  // Fetch approved driver & practical knowledge for current place
-  const approvedNotes = currentStop?.placeId ? getApprovedPlaceKnowledge(currentStop.placeId) : [];
+  // Reset narration toggle on stop change
+  useEffect(() => {
+    setShowFullNarration(false);
+  }, [currentStop?.stopId]);
 
-  const distanceFormatted = distanceMeters !== null
-    ? (distanceMeters < 1000 ? `${Math.round(distanceMeters)} m` : `${(distanceMeters / 1000).toFixed(1)} km`)
-    : null;
+  const approvedNotes = currentStop?.placeId ? getApprovedPlaceKnowledge(currentStop.placeId) : [];
 
   function handlePlayAudio() {
     if (speechState.isPlaying && !speechState.isPaused) {
@@ -53,251 +59,185 @@ export function LiveTourView({
     }
   }
 
-  function handleReplayAudio() {
-    const fullText = `${currentStop.name}. ${currentStop.narration || currentStop.shortIntro || ''}`;
-    speechEngine.speak(fullText, language);
+  function handleBottomTabSelect(tabId) {
+    if (tabId === 'live') {
+      setActiveTab('live');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (tabId === 'journey') {
+      onOpenItinerary();
+    } else if (tabId === 'ask') {
+      onOpenAsk();
+    } else if (tabId === 'more') {
+      onOpenItinerary();
+    }
   }
 
-  const getStatusBadge = () => {
-    switch (currentStatus) {
-      case JOURNEY_STATUS.HERE:
-        return <span className="status-badge badge-here">📍 {t('here')}</span>;
-      case JOURNEY_STATUS.APPROACHING:
-        return <span className="status-badge badge-approaching">⚡ {t('approaching')}</span>;
-      case JOURNEY_STATUS.COMPLETED:
-        return <span className="status-badge badge-completed">🏁 {t('visited')}</span>;
-      default:
-        return <span className="status-badge badge-upcoming">🚗 {t('upcoming')}</span>;
-    }
-  };
-
   return (
-    <div className="live-tour-view">
-      {/* Top sticky navigation / context bar */}
-      <header className="tour-topbar">
-        <div className="tour-topbar-left">
-          <button type="button" className="btn-icon-subtle" onClick={onBackToWelcome} title="Home">
-            ‹
-          </button>
-          <div className="topbar-info">
-            <span className="topbar-title">{tour.title?.[language] || tour.title?.en}</span>
-            <div className="topbar-meta">
-              <span className={`gps-indicator ${isGpsActive ? 'online' : 'manual'}`}>
-                {isGpsActive ? '● GPS Live' : '○ Manual Navigation'}
-              </span>
-              <span className="topbar-lang">{language.toUpperCase()}</span>
+    <div className="live-tour-view-shell">
+      {/* 1. Quiet, Functional Header */}
+      <AppHeader
+        onHome={onBackToWelcome}
+        title={tour.title?.[language] || tour.title?.en}
+        metaBadge={isGpsActive ? '● GPS' : '○ Manual'}
+        onOpenMenu={onOpenItinerary}
+      />
+
+      {/* 2. Main Scrollable Content */}
+      <div className="live-tour-scroll-body">
+        {/* Postcard Location Card */}
+        <LocationSnapshotCard
+          attraction={currentStop}
+          currentStatus={currentStatus}
+          distanceMeters={distanceMeters}
+          isGpsActive={isGpsActive}
+          language={language}
+          speechState={speechState}
+          onListen={handlePlayAudio}
+          onAskAi={onOpenAsk}
+          onViewPlace={onViewPlace}
+        />
+
+        {/* Next Stop Card */}
+        {nextStop && (
+          <div className="live-next-stop-container">
+            <NextStopCard
+              nextStop={nextStop}
+              distanceMeters={null}
+              onClick={onNextStop}
+            />
+          </div>
+        )}
+
+        {/* Deep Historical Story / Narration */}
+        {currentStop?.narration && (
+          <section className="tour-section-card story-card">
+            <div className="section-card-header">
+              <h3>📖 Historical & Cultural Context</h3>
             </div>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          className="btn-itinerary-pill"
-          onClick={onOpenItinerary}
-        >
-          🗺️ {t('viewJourney')}
-        </button>
-      </header>
-
-      {/* Main Attraction Card */}
-      <div className="live-content-container">
-        <div className="hero-stop-card">
-          <div className="card-status-row">
-            {getStatusBadge()}
-            {distanceFormatted && (
-              <span className="distance-counter">{distanceFormatted}</span>
-            )}
-          </div>
-
-          <h1 className="stop-headline">{currentStop?.name || t('waitingLocation')}</h1>
-
-          <p className="stop-lead-text">
-            {currentStop?.shortIntro || t('waitingLocationDesc')}
-          </p>
-
-          {/* Large Audio Control Bar (Low friction for in-car passenger use) */}
-          <div className="audio-control-hub">
+            <p className={`story-paragraph ${showFullNarration ? 'expanded' : 'collapsed'}`}>
+              {currentStop.narration}
+            </p>
             <button
               type="button"
-              className={`btn-listen-large ${speechState.isPlaying ? 'playing' : ''}`}
-              onClick={handlePlayAudio}
+              className="btn-story-toggle"
+              onClick={() => setShowFullNarration(!showFullNarration)}
             >
-              <span className="audio-icon">
-                {speechState.isPlaying && !speechState.isPaused ? '⏸' : '🔊'}
-              </span>
-              <span className="audio-label">
-                {speechState.isPlaying && !speechState.isPaused
-                  ? t('pause')
-                  : speechState.isPaused
-                  ? t('resume')
-                  : t('listen')}
-              </span>
+              {showFullNarration ? '▲ Show Less' : '▼ Read Full Cultural Story'}
             </button>
+          </section>
+        )}
 
-            {speechState.isPlaying && (
-              <button
-                type="button"
-                className="btn-audio-secondary"
-                onClick={handleReplayAudio}
-                title={t('replay')}
-              >
-                ↺ {t('replay')}
-              </button>
-            )}
-          </div>
+        {/* Interesting Facts */}
+        {currentStop?.interestingFacts && currentStop.interestingFacts.length > 0 && (
+          <section className="tour-section-card facts-card">
+            <div className="section-card-header">
+              <h3>💡 {t('interestingFacts')}</h3>
+            </div>
+            <ul className="facts-clean-list">
+              {currentStop.interestingFacts.map((fact, idx) => (
+                <li key={idx} className="fact-item-row">
+                  <span className="fact-bullet">✦</span>
+                  <span className="fact-text">{fact}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
-          {/* Full Narration Drawer / Toggle */}
-          {currentStop?.narration && (
-            <div className="narration-expandable">
-              {showFullNarration ? (
-                <div className="narration-full-text">
-                  <p>{currentStop.narration}</p>
-                  <button
-                    type="button"
-                    className="btn-text-toggle"
-                    onClick={() => setShowFullNarration(false)}
-                  >
-                    ▲ Collapse
-                  </button>
+        {/* Facilities & Practical Etiquette */}
+        {currentStop?.facilities && (
+          <section className="tour-section-card facilities-card">
+            <div className="section-card-header">
+              <h3>🏛️ {t('facilities')} & Etiquette</h3>
+            </div>
+            <div className="facilities-pill-grid">
+              {currentStop.facilities.restroom && (
+                <div className="facility-mini-item">
+                  <span className="facility-label">🚻 Restroom</span>
+                  <span className="facility-value">{currentStop.facilities.restroom}</span>
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  className="btn-text-toggle"
-                  onClick={() => setShowFullNarration(true)}
-                >
-                  📖 Read Full Story & Details ▼
-                </button>
+              )}
+              {currentStop.facilities.parking && (
+                <div className="facility-mini-item">
+                  <span className="facility-label">🅿️ Parking</span>
+                  <span className="facility-value">{currentStop.facilities.parking}</span>
+                </div>
+              )}
+              {currentStop.facilities.dressCode && (
+                <div className="facility-mini-item">
+                  <span className="facility-label">👗 Dress Code</span>
+                  <span className="facility-value">{currentStop.facilities.dressCode}</span>
+                </div>
+              )}
+              {currentStop.facilities.pickupSuitability && (
+                <div className="facility-mini-item">
+                  <span className="facility-label">🚐 Pickup</span>
+                  <span className="facility-value">{currentStop.facilities.pickupSuitability}</span>
+                </div>
               )}
             </div>
-          )}
+          </section>
+        )}
 
-          {/* Interesting Facts */}
-          {currentStop?.interestingFacts && currentStop.interestingFacts.length > 0 && (
-            <div className="facts-section">
-              <h3 className="section-subheading">💡 {t('interestingFacts')}</h3>
-              <ul className="facts-list">
-                {currentStop.interestingFacts.map((fact, idx) => (
-                  <li key={idx} className="fact-item">{fact}</li>
-                ))}
-              </ul>
+        {/* Approved Driver Observations */}
+        {approvedNotes.length > 0 && (
+          <section className="tour-section-card advice-card">
+            <div className="section-card-header">
+              <h3>🚗 Approved Local Advice</h3>
             </div>
-          )}
-
-          {/* Practical Driver & Visitor Facilities */}
-          {currentStop?.facilities && (
-            <div className="facilities-section">
-              <h3 className="section-subheading">🚻 {t('facilities')}</h3>
-              <div className="facility-grid">
-                {currentStop.facilities.restroom && (
-                  <div className="facility-item">
-                    <b>Restroom:</b> <span>{currentStop.facilities.restroom}</span>
-                  </div>
-                )}
-                {currentStop.facilities.parking && (
-                  <div className="facility-item">
-                    <b>Parking:</b> <span>{currentStop.facilities.parking}</span>
-                  </div>
-                )}
-                {currentStop.facilities.pickupSuitability && (
-                  <div className="facility-item">
-                    <b>Pickup Point:</b> <span>{currentStop.facilities.pickupSuitability}</span>
-                  </div>
-                )}
-                {currentStop.facilities.dressCode && (
-                  <div className="facility-item">
-                    <b>Dress Code:</b> <span>{currentStop.facilities.dressCode}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Approved Practical / Community Tips */}
-          {approvedNotes.length > 0 && (
-            <div className="driver-notes-section">
-              <h3 className="section-subheading">🚗 Approved Practical Advice</h3>
+            <div className="advice-items-list">
               {approvedNotes.map((note) => (
-                <div key={note.knowledgeId} className="note-card">
-                  <div className="note-header">
-                    <b>{note.title}</b>
-                    <small className="note-reviewer">Verified by {note.reviewer}</small>
-                  </div>
-                  <p className="note-content">
-                    {note.content[language] || note.content.en}
-                  </p>
+                <div key={note.knowledgeId} className="advice-bubble">
+                  <b>{note.title}</b>
+                  <p>{note.content[language] || note.content.en}</p>
                 </div>
               ))}
             </div>
-          )}
+          </section>
+        )}
 
-          {/* Next Stop Preview */}
-          {nextStop && (
-            <div className="next-stop-banner" onClick={onNextStop}>
-              <div className="next-stop-text">
-                <small>{t('next')}</small>
-                <h4>{nextStop.name}</h4>
-              </div>
-              <span className="next-stop-arrow">→</span>
-            </div>
-          )}
-        </div>
-
-        {/* Primary Interactive Action Grid */}
-        <div className="passenger-action-grid">
+        {/* Passenger Contribution Tile */}
+        <div className="share-tile-wrap">
           <button
             type="button"
-            className="action-tile ai-tile"
-            onClick={onOpenAsk}
-          >
-            <span className="tile-icon">💬</span>
-            <div className="tile-text">
-              <b>{t('askGuide')}</b>
-              <small>Instant history, facts & tips</small>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            className="action-tile share-tile"
+            className="passenger-share-banner-btn"
             onClick={onOpenShare}
           >
-            <span className="tile-icon">✍️</span>
-            <div className="tile-text">
-              <b>{t('shareSomething')}</b>
-              <small>Share a driver tip or comment</small>
+            <div className="share-icon-circle">
+              <IconShare size={20} />
             </div>
+            <div className="share-btn-text">
+              <span className="share-btn-title">{t('shareSomething')}</span>
+              <small className="share-btn-sub">Share a tip, photo spot or practical feedback</small>
+            </div>
+            <IconArrowRight size={18} />
           </button>
         </div>
 
-        {/* Bottom manual tour navigation controls */}
-        <div className="tour-stepper-bar">
+        {/* Stepper Controls (for manual skip or next stop) */}
+        <div className="tour-manual-stepper">
           <button
             type="button"
-            className="btn-stepper"
+            className="btn-stepper-subtle"
             onClick={onPrevStop}
-            title="Previous stop"
           >
-            ◀ Back
+            ‹ Previous Stop
           </button>
-
           <button
             type="button"
-            className="btn-stepper btn-stepper-primary"
-            onClick={onNextStop}
+            className="btn-stepper-advance"
+            onClick={nextStop ? onNextStop : onCompleteTour}
           >
-            {nextStop ? 'Next Stop ▶' : 'Finish Tour 🏁'}
-          </button>
-
-          <button
-            type="button"
-            className="btn-stepper btn-complete"
-            onClick={onCompleteTour}
-          >
-            Complete Tour
+            {nextStop ? 'Next Stop ›' : 'Complete Tour 🏁'}
           </button>
         </div>
       </div>
+
+      {/* 3. Persistent Standard Passenger Bottom Navigation */}
+      <BottomNav
+        activeTab={activeTab}
+        onTabSelect={handleBottomTabSelect}
+      />
     </div>
   );
 }

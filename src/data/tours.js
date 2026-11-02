@@ -6,7 +6,7 @@
 
 export const DEFAULT_TOUR_ID = 'kl-putrajaya-melaka-day-tour';
 
-export const TOURS = {
+export const INITIAL_TOURS = {
   'kl-putrajaya-melaka-day-tour': {
     tourId: 'kl-putrajaya-melaka-day-tour',
     code: 'MYTG-8812',
@@ -23,7 +23,7 @@ export const TOURS = {
       contact: '+60 12-345 6789'
     },
     availableLanguages: ['en', 'zh', 'ms', 'ja', 'ko'],
-    passengerLink: 'https://mytguide.com/t/MYTG-8812',
+    passengerLink: 'https://msiatguide.web.app/?tour=kl-putrajaya-melaka-day-tour',
     stops: [
       {
         stopId: 'stop-1-pickup',
@@ -118,3 +118,47 @@ export const TOURS = {
     ]
   }
 };
+
+export const TOURS = INITIAL_TOURS;
+
+const TOURS_STORAGE_KEY = 'mytguide_tours_store_v1';
+
+export function getToursStore() {
+  if (typeof window === 'undefined') return INITIAL_TOURS;
+  try {
+    const raw = localStorage.getItem(TOURS_STORAGE_KEY);
+    if (!raw) {
+      localStorage.setItem(TOURS_STORAGE_KEY, JSON.stringify(INITIAL_TOURS));
+      return INITIAL_TOURS;
+    }
+    const parsed = JSON.parse(raw);
+    return { ...INITIAL_TOURS, ...parsed };
+  } catch {
+    return INITIAL_TOURS;
+  }
+}
+
+export function saveTourToStore(tour) {
+  if (typeof window === 'undefined' || !tour?.tourId) return;
+  try {
+    const current = getToursStore();
+    current[tour.tourId] = tour;
+    localStorage.setItem(TOURS_STORAGE_KEY, JSON.stringify(current));
+  } catch (e) {
+    console.error('Failed to save tour to store', e);
+  }
+}
+
+export function getTourById(idOrCode) {
+  if (!idOrCode) return getToursStore()[DEFAULT_TOUR_ID];
+  const all = getToursStore();
+  // 1. Direct match by tourId
+  if (all[idOrCode]) return all[idOrCode];
+  // 2. Match by tour code (case-insensitive)
+  const codeMatch = Object.values(all).find(
+    t => t.code && t.code.toLowerCase() === idOrCode.toLowerCase()
+  );
+  if (codeMatch) return codeMatch;
+  // 3. Fallback to default tour
+  return all[DEFAULT_TOUR_ID];
+}

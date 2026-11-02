@@ -1,31 +1,73 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
-import { TOURS, DEFAULT_TOUR_ID } from './data/tours.js';
+import { TOURS, DEFAULT_TOUR_ID, getTourById, getToursStore } from './data/tours.js';
 import { evaluateJourneyProgress, JOURNEY_STATUS } from './lib/journeyEngine.js';
 import { getTranslation } from './lib/i18n.js';
+import { LandingPage } from './components/LandingPage.jsx';
 import { WelcomeScreen } from './components/WelcomeScreen.jsx';
 import { LocationPromptModal } from './components/LocationPromptModal.jsx';
 import { LiveTourView } from './components/LiveTourView.jsx';
+import { PlaceDetailView } from './components/PlaceDetailView.jsx';
 import { AskGuideModal } from './components/AskGuideModal.jsx';
 import { PassengerShareModal } from './components/PassengerShareModal.jsx';
 import { TourDrawer } from './components/TourDrawer.jsx';
+import { JourneyCompleteView } from './components/JourneyCompleteView.jsx';
 import { OperatorTourBuilder } from './components/OperatorTourBuilder.jsx';
 import { OperatorReviewView } from './components/OperatorReviewView.jsx';
 import './styles/app.css';
 
-const SCREENS = {
+export const SCREENS = {
+  LANDING: 'LANDING',
   WELCOME: 'WELCOME',
   LOCATION_PROMPT: 'LOCATION_PROMPT',
   LIVE_TOUR: 'LIVE_TOUR',
+  PLACE: 'PLACE',
   COMPLETED: 'COMPLETED',
   OPERATOR_BUILDER: 'OPERATOR_BUILDER',
   OPERATOR_REVIEW: 'OPERATOR_REVIEW'
 };
 
+function parseRouteFromUrl() {
+  const hash = window.location.hash.replace(/^#\/?/, '');
+  const pathname = window.location.pathname.replace(/^\//, '');
+  const searchParams = new URLSearchParams(window.location.search);
+  const tourParam = searchParams.get('tour') || searchParams.get('code');
+
+  const rawRoute = hash || pathname;
+
+  if (rawRoute === 'operator' || rawRoute.startsWith('operator/')) {
+    return { screen: SCREENS.OPERATOR_BUILDER };
+  }
+  if (rawRoute === 'review' || rawRoute.startsWith('review/')) {
+    return { screen: SCREENS.OPERATOR_REVIEW };
+  }
+  if (rawRoute.startsWith('place/')) {
+    const placeId = rawRoute.split('/')[1];
+    return { screen: SCREENS.PLACE, placeId };
+  }
+  if (rawRoute.startsWith('live/')) {
+    const tourId = rawRoute.split('/')[1] || DEFAULT_TOUR_ID;
+    return { screen: SCREENS.LIVE_TOUR, tourId };
+  }
+  if (rawRoute.startsWith('tour/') || rawRoute.startsWith('t/')) {
+    const tourId = rawRoute.split('/')[1] || DEFAULT_TOUR_ID;
+    return { screen: SCREENS.WELCOME, tourId };
+  }
+  if (tourParam) {
+    return { screen: SCREENS.WELCOME, tourId: tourParam };
+  }
+
+  return { screen: SCREENS.LANDING };
+}
+
 function App() {
-  const [screen, setScreen] = useState(SCREENS.WELCOME);
+  const initialRoute = useMemo(() => parseRouteFromUrl(), []);
+  const [screen, setScreen] = useState(initialRoute.screen);
   const [language, setLanguage] = useState('en');
-  const [activeTour, setActiveTour] = useState(TOURS[DEFAULT_TOUR_ID]);
+  const [activeTour, setActiveTour] = useState(() => {
+    return getTourById(initialRoute.tourId || DEFAULT_TOUR_ID);
+  });
+  const [activePlaceId, setActivePlaceId] = useState(initialRoute.placeId || 'batu-caves');
   const [currentStopIndex, setCurrentStopIndex] = useState(0);
   const [visitedStopIds, setVisitedStopIds] = useState(() => new Set());
   
@@ -38,6 +80,56 @@ function App() {
   const [showAsk, setShowAsk] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showItinerary, setShowItinerary] = useState(false);
+
+  // Route Synchronization Helper
+  const navigateTo = useCallback((newScreen, params = {}) => {
+    setScreen(newScreen);
+    if (params.tourId) {
+      const tour = getTourById(params.tourId);
+      if (tour) setActiveTour(tour);
+    }
+    if (params.placeId) {
+      setActivePlaceId(params.placeId);
+    }
+
+    // Update URL hash safely for client-side routing
+    if (newScreen === SCREENS.LANDING) {
+      window.history.pushState(null, '', '/');
+    } else if (newScreen === SCREENS.WELCOME) {
+      const tId = params.tourId || activeTour.tourId;
+      window.history.pushState(null, '', `/#/tour/${tId}`);
+    } else if (newScreen === SCREENS.LIVE_TOUR) {
+      window.history.pushState(null, '', `/#/live/${activeTour.tourId}`);
+    } else if (newScreen === SCREENS.PLACE) {
+      const pId = params.placeId || activePlaceId;
+      window.history.pushState(null, '', `/#/place/${pId}`);
+    } else if (newScreen === SCREENS.OPERATOR_BUILDER) {
+      window.history.pushState(null, '', `/#/operator`);
+    } else if (newScreen === SCREENS.OPERATOR_REVIEW) {
+      window.history.pushState(null, '', `/#/review`);
+    }
+  }, [activeTour.tourId, activePlaceId]);
+
+  // Listen for browser forward/backward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const parsed = parseRouteFromUrl();
+      setScreen(parsed.screen);
+      if (parsed.tourId) {
+        const found = getTourById(parsed.tourId);
+        if (found) setActiveTour(found);
+      }
+      if (parsed.placeId) {
+        setActivePlaceId(parsed.placeId);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
+  }, []);
 
   // Register service worker for offline / PWA support
   useEffect(() => {
@@ -69,7 +161,7 @@ function App() {
   // Start Location Watcher
   function startLocationTracking() {
     if (!('geolocation' in navigator)) {
-      setScreen(SCREENS.LIVE_TOUR);
+      navigateTo(SCREENS.LIVE_TOUR);
       return;
     }
 
@@ -98,7 +190,7 @@ function App() {
     );
 
     setWatchId(id);
-    setScreen(SCREENS.LIVE_TOUR);
+    navigateTo(SCREENS.LIVE_TOUR);
   }
 
   // Handle stop progression
@@ -123,29 +215,38 @@ function App() {
 
   return (
     <main className="app-shell">
-      {/* 1. Welcome Screen */}
+      {/* 1. Public Marketing Landing & Tour Code Entry */}
+      {screen === SCREENS.LANDING && (
+        <LandingPage
+          onStartTourWithCode={(tourId) => navigateTo(SCREENS.WELCOME, { tourId })}
+          onExploreDefaultTour={() => navigateTo(SCREENS.WELCOME, { tourId: DEFAULT_TOUR_ID })}
+          onOpenOperator={() => navigateTo(SCREENS.OPERATOR_BUILDER)}
+        />
+      )}
+
+      {/* 2. Direct Passenger Welcome Screen (Language selector & Start Tour) */}
       {screen === SCREENS.WELCOME && (
         <WelcomeScreen
           language={language}
           onSelectLanguage={setLanguage}
           onStartTour={() => setScreen(SCREENS.LOCATION_PROMPT)}
-          onOpenOperator={() => setScreen(SCREENS.OPERATOR_BUILDER)}
+          onOpenOperator={() => navigateTo(SCREENS.OPERATOR_BUILDER)}
         />
       )}
 
-      {/* 2. Location Permission Explainer Modal */}
+      {/* 3. Location Permission Explainer Modal */}
       {screen === SCREENS.LOCATION_PROMPT && (
         <LocationPromptModal
           language={language}
           onAllowLocation={startLocationTracking}
           onContinueManual={() => {
             setIsGpsActive(false);
-            setScreen(SCREENS.LIVE_TOUR);
+            navigateTo(SCREENS.LIVE_TOUR);
           }}
         />
       )}
 
-      {/* 3. Live Tour Main Experience */}
+      {/* 4. Live Tour Main Experience */}
       {screen === SCREENS.LIVE_TOUR && (
         <LiveTourView
           tour={activeTour}
@@ -161,57 +262,48 @@ function App() {
           onNextStop={handleNextStop}
           onPrevStop={handlePrevStop}
           onCompleteTour={() => setScreen(SCREENS.COMPLETED)}
-          onBackToWelcome={() => setScreen(SCREENS.WELCOME)}
+          onBackToWelcome={() => navigateTo(SCREENS.LANDING)}
+          onViewPlace={(placeId) => navigateTo(SCREENS.PLACE, { placeId })}
         />
       )}
 
-      {/* 4. Journey Completed View */}
-      {screen === SCREENS.COMPLETED && (
-        <div className="completed-screen">
-          <div className="completed-card">
-            <span className="celebration-icon">🎉</span>
-            <h1>{t('tourCompletedHeading')}</h1>
-            <p>{t('tourCompletedBody')}</p>
-
-            <div className="completed-stats">
-              <div className="stat-box">
-                <b>{activeTour.stops.length}</b>
-                <small>Stops Visited</small>
-              </div>
-              <div className="stat-box">
-                <b>100%</b>
-                <small>Live Guide Active</small>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className="btn-primary btn-large"
-              onClick={() => {
-                setCurrentStopIndex(0);
-                setVisitedStopIds(new Set());
-                setScreen(SCREENS.WELCOME);
-              }}
-            >
-              {t('returnHome')}
-            </button>
-          </div>
-        </div>
+      {/* 5. Passenger-Safe Approved Place Content */}
+      {screen === SCREENS.PLACE && (
+        <PlaceDetailView
+          placeId={activePlaceId}
+          language={language}
+          onBack={() => navigateTo(SCREENS.LIVE_TOUR)}
+        />
       )}
 
-      {/* 5. Operator Tour Builder */}
+      {/* 6. Journey Completed View (Digital Keepsake) */}
+      {screen === SCREENS.COMPLETED && (
+        <JourneyCompleteView
+          tour={activeTour}
+          visitedStopIds={visitedStopIds}
+          language={language}
+          onReturnHome={() => {
+            setCurrentStopIndex(0);
+            setVisitedStopIds(new Set());
+            navigateTo(SCREENS.LANDING);
+          }}
+        />
+      )}
+
+      {/* 7. Operator Tour Builder */}
       {screen === SCREENS.OPERATOR_BUILDER && (
         <OperatorTourBuilder
-          onClose={() => setScreen(SCREENS.WELCOME)}
-          onSwitchToReview={() => setScreen(SCREENS.OPERATOR_REVIEW)}
+          onClose={() => navigateTo(SCREENS.LANDING)}
+          onSwitchToReview={() => navigateTo(SCREENS.OPERATOR_REVIEW)}
+          onOpenTour={(tourId) => navigateTo(SCREENS.WELCOME, { tourId })}
         />
       )}
 
-      {/* 6. Operator Review Queue */}
+      {/* 8. Operator Review Queue */}
       {screen === SCREENS.OPERATOR_REVIEW && (
         <OperatorReviewView
-          onBackToBuilder={() => setScreen(SCREENS.OPERATOR_BUILDER)}
-          onClose={() => setScreen(SCREENS.WELCOME)}
+          onBackToBuilder={() => navigateTo(SCREENS.OPERATOR_BUILDER)}
+          onClose={() => navigateTo(SCREENS.LANDING)}
         />
       )}
 

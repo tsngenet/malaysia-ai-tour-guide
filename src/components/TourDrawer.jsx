@@ -1,26 +1,30 @@
 import React from 'react';
 import { getTranslation } from '../lib/i18n.js';
+import { IconClose, IconCheck, IconMapPin } from './common/Icons.jsx';
+import { StatusBadge } from './common/StatusBadge.jsx';
 
 export function TourDrawer({ tour, allStopsWithState, currentIndex, language, onClose, onSelectStop }) {
   const t = (k) => getTranslation(language, k);
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card modal-sheet itinerary-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-handle" />
+    <div className="modal-backdrop-shell" onClick={onClose}>
+      <div className="itinerary-sheet-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-sheet-dragger" />
 
-        <div className="sheet-header">
-          <div>
-            <small className="sheet-tag">{tour.code}</small>
-            <h2>{t('routeTitle')}</h2>
-            <p className="sheet-subtitle">
+        <div className="modal-sheet-header">
+          <div className="header-info-group">
+            <span className="tour-code-tag">{tour.code}</span>
+            <h2 className="modal-title">{t('routeTitle')}</h2>
+            <p className="modal-subtitle">
               {tour.title?.[language] || tour.title?.en}
             </p>
           </div>
-          <button type="button" className="btn-close" onClick={onClose}>✕</button>
+          <button type="button" className="btn-modal-close" onClick={onClose} aria-label="Close">
+            <IconClose size={20} />
+          </button>
         </div>
 
-        <div className="stops-timeline">
+        <div className="itinerary-timeline-list">
           {allStopsWithState.map((stop, idx) => {
             const isCurrent = idx === currentIndex;
             const isVisited = stop.isVisited;
@@ -31,41 +35,43 @@ export function TourDrawer({ tour, allStopsWithState, currentIndex, language, on
             return (
               <div
                 key={stop.stopId || idx}
-                className={`timeline-stop ${isCurrent ? 'current' : ''} ${isVisited ? 'visited' : ''}`}
+                className={`timeline-stop-row ${isCurrent ? 'current' : ''} ${isVisited ? 'visited' : ''}`}
                 onClick={() => {
                   if (onSelectStop) onSelectStop(idx);
                   onClose();
                 }}
+                role="button"
+                tabIndex={0}
+                aria-label={`${stop.name} ${isCurrent ? '- Active Stop' : ''}`}
               >
-                <div className="stop-marker">
-                  {isVisited ? '✓' : idx + 1}
+                <div className="stop-step-indicator">
+                  {isVisited ? (
+                    <span className="step-visited-check">✓</span>
+                  ) : (
+                    <span className="step-number">{idx + 1}</span>
+                  )}
+                  {idx < allStopsWithState.length - 1 && <div className="step-connector-line" />}
                 </div>
-                
-                <div className="stop-info">
-                  <div className="stop-title-row">
-                    <span className="stop-name">{stop.name}</span>
+
+                <div className="stop-card-details">
+                  <div className="stop-header-line">
+                    <span className="stop-title-text">{stop.name}</span>
                     {distanceDisplay && (
-                      <span className="stop-distance-pill">{distanceDisplay}</span>
-                    )}
-                  </div>
-                  
-                  <div className="stop-meta-row">
-                    {isCurrent && (
-                      <span className="badge-status-current">● ACTIVE STOP</span>
-                    )}
-                    {isVisited && (
-                      <span className="badge-status-visited">{t('visited')}</span>
-                    )}
-                    {!isCurrent && !isVisited && (
-                      <span className="badge-status-upcoming">{t('upcoming')}</span>
-                    )}
-                    {stop.isCustom && (
-                      <span className="badge-custom-stop">Custom</span>
+                      <span className="stop-distance-chip">
+                        <IconMapPin size={12} />
+                        <span>{distanceDisplay}</span>
+                      </span>
                     )}
                   </div>
 
+                  <div className="stop-badge-status-line">
+                    {isCurrent && <StatusBadge type="approaching" label="ACTIVE STOP" />}
+                    {isVisited && <StatusBadge type="verified" label="VISITED" />}
+                    {!isCurrent && !isVisited && <StatusBadge type="next" label="UPCOMING" />}
+                  </div>
+
                   {stop.shortIntro && (
-                    <p className="stop-intro-preview">{stop.shortIntro}</p>
+                    <p className="stop-intro-snip">{stop.shortIntro}</p>
                   )}
                 </div>
               </div>

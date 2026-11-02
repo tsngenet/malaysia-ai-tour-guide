@@ -32,18 +32,23 @@ function json(res, status, data) {
  * 2. OpenAI-compatible / Custom endpoint via AI_ENDPOINT + AI_API_KEY
  * 3. Graceful Grounded Fallback: Provides reliable answers from vetted knowledge store
  */
-async function generateAiGuideResponse({ question, place, placeId, tourId, language = 'en' }) {
+async function generateAiGuideResponse({ question, place, placeId, tourId, language = 'en', knowledgeContext = '' }) {
   const geminiApiKey = process.env.GEMINI_API_KEY || process.env.AI_API_KEY;
   const customEndpoint = process.env.AI_ENDPOINT;
 
+  const contextBlock = knowledgeContext
+    ? `\n\nApproved Site Knowledge & Driver Observations:\n${knowledgeContext}`
+    : '';
+
   const systemInstruction = `You are the Malaysia AI Live Tour Guide passenger assistant for tourists travelling in a vehicle across Malaysia.
 Current stop: "${place || 'Malaysia'}".
-Passenger language: "${language}".
+Passenger language: "${language}".${contextBlock}
 Instructions:
 - Provide an informative, welcoming, and concise response (under 120 words) tailored to a passenger on the road.
+- Prioritise the supplied approved site knowledge above.
 - Only state verified Malaysian cultural, historical, and practical information.
 - If unsure about specific current opening times or prices, clearly advise the passenger to verify with the site counter or tour driver.
-- Do NOT hallucinate unverified historical claims.
+- Do NOT hallucinate unverified historical or commercial claims.
 - Reply in the passenger's language (${language}).`;
 
   // 1. Google Gemini 1.5 Flash / Pro REST API
@@ -110,10 +115,10 @@ Instructions:
   }
 
   // 3. Grounded Fallback: Reliable local knowledge matching
-  return generateGroundedFallbackResponse(question, place, language);
+  return generateGroundedFallbackResponse(question, place, language, knowledgeContext);
 }
 
-function generateGroundedFallbackResponse(question, place, lang) {
+function generateGroundedFallbackResponse(question, place, lang, knowledgeContext = '') {
   const q = question.toLowerCase();
   const p = (place || '').toLowerCase();
 
@@ -194,7 +199,8 @@ http.createServer(async (req, res) => {
         place: body.place,
         placeId: body.placeId,
         tourId: body.tourId,
-        language: body.language || 'en'
+        language: body.language || 'en',
+        knowledgeContext: body.knowledgeContext || ''
       });
 
       return json(res, 200, { answer });

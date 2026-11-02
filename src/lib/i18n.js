@@ -62,7 +62,17 @@ export const TRANSLATIONS = {
     facilities: 'Facilities & Visitor Info',
     interestingFacts: 'Interesting Facts',
     sourceRef: 'Verified Sources',
-    commercialNotice: 'Sponsored / Commercial Recommendation'
+    commercialNotice: 'Sponsored / Commercial Recommendation',
+    viewPlace: 'View Place',
+    satelliteSnapshot: 'SATELLITE SNAPSHOT',
+    aerialSnapshot: 'AERIAL VIEW',
+    photoSnapshot: 'PHOTO VIEW',
+    approachingPrefix: 'Approaching',
+    approxDistance: 'approximately',
+    nextPrefix: 'Next:',
+    youAreAtPrefix: 'You are at',
+    recentlyPassedPrefix: 'Recently passed',
+    locationUnavailable: 'Location currently unavailable'
   },
   zh: {
     appTitle: '马来西亚实时AI导游',
@@ -113,7 +123,17 @@ export const TRANSLATIONS = {
     facilities: '设施与便利指南',
     interestingFacts: '趣味小知识',
     sourceRef: '权威参考来源',
-    commercialNotice: '合作推广推荐'
+    commercialNotice: '合作推广推荐',
+    viewPlace: '查看详情',
+    satelliteSnapshot: '卫星俯瞰',
+    aerialSnapshot: '航拍摄影',
+    photoSnapshot: '实景照片',
+    approachingPrefix: '即将到达',
+    approxDistance: '距离约',
+    nextPrefix: '下一站：',
+    youAreAtPrefix: '您已到达',
+    recentlyPassedPrefix: '已途经',
+    locationUnavailable: '定位暂不可用'
   },
   ms: {
     appTitle: 'Pemandu Pelancong Maya AI Malaysia',
@@ -164,7 +184,17 @@ export const TRANSLATIONS = {
     facilities: 'Kemudahan & Maklumat Pelawat',
     interestingFacts: 'Fakta Menarik',
     sourceRef: 'Rujukan Sahih',
-    commercialNotice: 'Rakan Kongsi / Cadangan Komersial'
+    commercialNotice: 'Rakan Kongsi / Cadangan Komersial',
+    viewPlace: 'Lihat Tempat',
+    satelliteSnapshot: 'PANDANGAN SATELIT',
+    aerialSnapshot: 'PANDANGAN UDARA',
+    photoSnapshot: 'FOTO TEMPAT',
+    approachingPrefix: 'Menghampiri',
+    approxDistance: 'kira-kira',
+    nextPrefix: 'Seterusnya:',
+    youAreAtPrefix: 'Anda berada di',
+    recentlyPassedPrefix: 'Baru melepasi',
+    locationUnavailable: 'Lokasi tidak tersedia'
   },
   ja: {
     appTitle: 'マレーシア AI ライブツアーガイド',
@@ -215,7 +245,17 @@ export const TRANSLATIONS = {
     facilities: '施設・見学情報',
     interestingFacts: 'おもしろ豆知識',
     sourceRef: '確認済み参照元',
-    commercialNotice: '提携・おすすめ店舗'
+    commercialNotice: '提携・おすすめ店舗',
+    viewPlace: 'スポット詳細',
+    satelliteSnapshot: '衛星写真',
+    aerialSnapshot: '空撮ビュー',
+    photoSnapshot: '現地フォト',
+    approachingPrefix: '接近中',
+    approxDistance: '約',
+    nextPrefix: '次の立ち寄り先：',
+    youAreAtPrefix: '現在地：',
+    recentlyPassedPrefix: '通過：',
+    locationUnavailable: '位置情報が利用できません'
   },
   ko: {
     appTitle: '말레이시아 AI 라이브 투어 가이드',
@@ -266,7 +306,17 @@ export const TRANSLATIONS = {
     facilities: '편의 시설 및 이용 안내',
     interestingFacts: '재미있는 이야기',
     sourceRef: '검증된 출처',
-    commercialNotice: '제휴 및 추천 장소'
+    commercialNotice: '제휴 및 추천 장소',
+    viewPlace: '장소 보기',
+    satelliteSnapshot: '위성 스냅샷',
+    aerialSnapshot: '항공 뷰',
+    photoSnapshot: '현장 사진',
+    approachingPrefix: '접근 중',
+    approxDistance: '약',
+    nextPrefix: '다음 목적지:',
+    youAreAtPrefix: '현재 위치:',
+    recentlyPassedPrefix: '최근 지나감:',
+    locationUnavailable: '위치 정보를 확인할 수 없습니다'
   }
 };
 

@@ -3210,3 +3210,112 @@ h1, h2, h3, h4, p {
     transform: rotate(360deg);
   }
 }
+
+/* 2026-11-07: Fix operator builder intrinsic grid overflow observed on staging.
+   Grid children must be permitted to shrink inside the app shell. */
+.builder-main-grid {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+.builder-main-grid > * {
+  min-width: 0;
+  max-width: 100%;
+}
+@media (min-width: 1024px) {
+  .builder-main-grid {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  }
+}
+.attraction-cards-grid {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 640px) {
+  .attraction-cards-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  }
+}
+.attraction-library-card {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+/* Descriptions are essential travel information; show all of them. */
+.card-att-intro {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+  height: auto;
+  min-width: 0;
+}
+
+/* 2026-11-08: Complete comprehensive responsive repair (preserving existing corrections above).
+   Ensures containers, cards, scrollable rows, and controls fit strictly within mobile & desktop viewports. */
+.operator-container {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .operator-container {
+    padding: 12px;
+  }
+}
+
+.operator-section-card {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.workspace-column,
+.library-column {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.destinations-scroll-row,
+.categories-filter-row {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.workspace-stop-card {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.stop-details-col {
+  min-width: 0;
+}
+
+.stop-title,
+.card-att-title,
+.card-att-sub {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.card-att-footer {
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.builder-top-grid > * {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+

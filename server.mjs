@@ -1,9 +1,21 @@
 import http from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
+import { INITIAL_TOURS } from './src/data/tours.js';
 
 const port = Number(process.env.PORT || 3000);
 const root = join(process.cwd(), 'dist');
+
+
+
+async function parseBody(req, limit = 500000) {
+  let raw = '';
+  for await (const chunk of req) {
+    raw += chunk;
+    if (raw.length > limit) throw new Error('Request payload too large');
+  }
+  return JSON.parse(raw || '{}');
+}
 
 const mimeTypes = {
   '.html': 'text/html',
@@ -20,7 +32,8 @@ function json(res, status, data) {
   res.writeHead(status, {
     'content-type': 'application/json',
     'access-control-allow-origin': '*',
-    'access-control-allow-headers': 'content-type'
+    'access-control-allow-methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'access-control-allow-headers': 'content-type, authorization'
   });
   res.end(JSON.stringify(data));
 }
@@ -208,6 +221,17 @@ http.createServer(async (req, res) => {
       console.error('API Error in /api/ask:', err);
       return json(res, 500, { error: 'Failed to process AI question.' });
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // PHASE 1C: DEPRECATED MOCK ENDPOINTS (Bypassed by official Firebase SDK)
+  // ---------------------------------------------------------------------------
+  if (req.url.startsWith('/api/auth/driver-') || req.url.startsWith('/api/tours/')) {
+    return json(res, 410, {
+      ok: false,
+      error: 'Endpoint Removed',
+      message: 'Mock server persistence has been decommissioned. Phase 1C connects directly to Firebase Auth and Cloud Firestore via the official Firebase Web SDK.'
+    });
   }
 
   // Static File Serving

@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "msiatguide"
+    "default": "msiatguide-staging",
+    "staging": "msiatguide-staging",
+    "production": "msiatguide"
   }
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DEFAULT_TOUR_ID, getTourById } from '../data/tours.js';
+import { DEFAULT_TOUR_ID, getTourById, fetchTourByIdOrCodeAsync } from '../data/tours.js';
 import { BrandLogo } from './common/BrandLogo.jsx';
 import { IconArrowRight, IconMapPin, IconListen, IconAsk, IconShare } from './common/Icons.jsx';
 
@@ -7,20 +7,31 @@ export function LandingPage({ onStartTourWithCode, onExploreDefaultTour, onOpenO
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [inputCode, setInputCode] = useState('');
   const [error, setError] = useState('');
+  const [isCheckingCode, setIsCheckingCode] = useState(false);
 
-  function handleSubmitCode(e) {
+  async function handleSubmitCode(e) {
     e.preventDefault();
     const trimmed = inputCode.trim();
     if (!trimmed) {
       setError('Please enter a tour code (e.g. MYTG-8812)');
       return;
     }
-    const found = getTourById(trimmed);
-    if (!found) {
-      setError(`Tour "${trimmed}" not found. Try the demo tour or MYTG-8812.`);
-      return;
+    setIsCheckingCode(true);
+    setError('');
+
+    try {
+      const found = await fetchTourByIdOrCodeAsync(trimmed);
+      if (!found) {
+        setError(`Tour code "${trimmed}" was not found. Please verify with your driver.`);
+        setIsCheckingCode(false);
+        return;
+      }
+      onStartTourWithCode(found.tourId || found.code);
+    } catch {
+      setError('Network error checking tour code. Please try again.');
+    } finally {
+      setIsCheckingCode(false);
     }
-    onStartTourWithCode(found.tourId);
   }
 
   return (
@@ -93,8 +104,8 @@ export function LandingPage({ onStartTourWithCode, onExploreDefaultTour, onOpenO
                   maxLength={20}
                   autoFocus
                 />
-                <button type="submit" className="btn-code-submit">
-                  Join Tour →
+                <button type="submit" className="btn-code-submit" disabled={isCheckingCode}>
+                  {isCheckingCode ? 'Verifying...' : 'Join Tour →'}
                 </button>
               </form>
               {error && <span className="landing-error-msg">{error}</span>}

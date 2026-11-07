@@ -170,8 +170,14 @@ export function saveTourToStore(tour) {
   }
 }
 
-export function getTourById(idOrCode) {
-  if (!idOrCode) return getToursStore()[DEFAULT_TOUR_ID];
+/**
+ * Synchronous lookup in local store.
+ * @param {string} idOrCode
+ * @param {boolean} [fallbackToDefault=false] - Only set to true if explicitly allowed.
+ * REQUIREMENT 9: When looking up specific tour codes, never silently fallback to default tour!
+ */
+export function getTourById(idOrCode, fallbackToDefault = false) {
+  if (!idOrCode) return fallbackToDefault ? getToursStore()[DEFAULT_TOUR_ID] : null;
   const all = getToursStore();
   // 1. Direct match by tourId
   if (all[idOrCode]) return all[idOrCode];
@@ -180,6 +186,45 @@ export function getTourById(idOrCode) {
     t => t.code && t.code.toLowerCase() === idOrCode.toLowerCase()
   );
   if (codeMatch) return codeMatch;
-  // 3. Fallback to default tour
-  return all[DEFAULT_TOUR_ID];
+  // 3. Fallback only if explicitly requested
+  if (fallbackToDefault) {
+    return all[DEFAULT_TOUR_ID];
+  }
+  return null;
+}
+
+/**
+ * Asynchronous lookup checking both local store and server/Firestore shared store.
+ * Enables passengers on clean storage devices to open driver-published tours across devices.
+ * If tour is not found, returns null (never silently redirects).
+ */
+export async function fetchTourByIdOrCodeAsync(idOrCode) {
+  if (!idOrCode) return getToursStore()[DEFAULT_TOUR_ID];
+
+  // 1. Check local cache first
+  const localMatch = getTourById(idOrCode, false);
+  if (localMatch) return localMatch;
+
+  // 2. Query remote server/Firestore published store
+  try {
+    const { fetchPublishedTour } = await import('../lib/firebase.js');
+    const remoteTour = await fetchPublishedTour(idOrCode);
+    if (remoteTour) {
+      // Cache locally for offline resilience
+      saveTourToStore(remoteTour);
+      return remoteTour;
+    }
+  } catch (err) {
+    console.warn('Remote tour fetch failed, checking static fallback:', err);
+  }
+
+  // 3. Check static initial tours
+  if (INITIAL_TOURS[idOrCode]) return INITIAL_TOURS[idOrCode];
+  const staticMatch = Object.values(INITIAL_TOURS).find(
+    t => t.code && t.code.toLowerCase() === idOrCode.toLowerCase()
+  );
+  if (staticMatch) return staticMatch;
+
+  // 4. Truly not found - return null (Requirement 9)
+  return null;
 }

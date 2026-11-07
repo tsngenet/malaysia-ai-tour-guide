@@ -1,0 +1,553 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Application: Malaysia AI Tour Guide (Phase 1)
+//
+// Collection: attractions/{placeId}
+// Document ID: placeId (kebab-case string, e.g. 'batu-caves')
+// Fields:
+//   - placeId: string (required, immutable) - Unique attraction slug
+//   - name: map (required) - Multilingual names, must include 'en' (1-120 chars)
+//   - destination: string (required, 2-50 chars) - State or region destination
+//   - category: string (required) - 'heritage'|'culture'|'nature'|'culinary'|'viewpoint'|'activity'|'shopping'|'museum'
+//   - verificationStatus: string (required) - 'approved'|'pending_review'|'draft'|'rejected'
+//   - suggestedDurationMinutes: int/float (required, > 0 and <= 1440) - Recommended dwell time
+//   - durationRange: map (optional) - { minMinutes: number, maxMinutes: number }
+//   - shortIntro: map (required) - Multilingual introduction, requires 'en' (<= 1000 chars)
+//   - narration: map (required) - Multilingual audio narration, requires 'en' (<= 5000 chars)
+//   - coordinates: map (optional/null) - { lat: number [-90, 90], lng: number [-180, 180] }, prohibit (0, 0)
+//   - heroVisual: map (optional) - Visual media metadata
+//   - tags: list (optional, <= 20 items, each string <= 30 chars)
+//   - createdAt: timestamp (optional, immutable)
+//   - updatedAt: timestamp (optional)
+//
+// Collection: tours_published/{tourId} & published_tours/{tourId}
+// Document ID: tourId (kebab-case or unique string, e.g. 'kl-putrajaya-melaka-day-tour')
+// Fields:
+//   - tourId: string (required, immutable) - Unique tour identifier
+//   - driverUid: string (required, immutable) - Firebase Auth UID of tour owner
+//   - agencyId: string (optional, 1-100 chars) - Associated travel agency ID
+//   - code: string (required, immutable snapshot, 3-30 chars) - Tour code (e.g. 'MYTG-8812')
+//   - publishedVersion: int (required, immutable snapshot, >= 1) - Monotonic version number
+//   - publishedAt: timestamp (required, immutable snapshot) - Timestamp when published
+//   - title: map (required) - Multilingual title with 'en' (1-200 chars)
+//   - publicationStatus: string (required) - 'published'|'archived'
+//   - stops: list (required, <= 60 items) - Ordered stops / waypoints
+//   - owner: map (optional) - Operator name and contact metadata
+//   - availableLanguages: list (optional, <= 10 items) - Supported language codes
+//   - passengerLink: string (optional, <= 500 chars)
+//   - coordinates: map (optional/null) - Starting point or tour center coordinates
+//   - routePolyline: string (optional, <= 50000 chars)
+//   - summary: map/string (optional)
+//   - startTime: string (optional, <= 10 chars)
+//   - scheduleSummary: map (optional)
+//   - destination: string (optional, <= 50 chars)
+//   - createdAt: timestamp (optional)
+//   - updatedAt: timestamp (optional)
+//
+// Collection: tours_draft/{tourId}
+// Document ID: tourId (unique string, 2-100 chars)
+// Fields:
+//   - tourId: string (required, immutable) - Draft tour ID
+//   - driverUid: string (required, immutable) - Owning driver's UID
+//   - agencyId: string (optional, <= 100 chars) - Assigned agency ID
+//   - title: map/string (optional, <= 200 chars)
+//   - status: string (optional) - 'draft'|'in_progress'|'ready'
+//   - publicationStatus: string (optional) - 'draft'|'published'|'archived'
+//   - stops: list (optional, <= 60 items)
+//   - code: string (optional, <= 30 chars)
+//   - coordinates: map (optional/null) - Prohibits fake (0, 0)
+//   - routePolyline: string (optional)
+//   - notes: string (optional, <= 2000 chars)
+//   - summary: map/string (optional)
+//   - owner: map (optional)
+//   - availableLanguages: list (optional, <= 10 items)
+//   - startTime: string (optional, <= 10 chars)
+//   - scheduleSummary: map (optional)
+//   - destination: string (optional, <= 50 chars)
+//   - lastUpdated: string/timestamp (optional, string <= 50 chars)
+//   - createdAt: timestamp (optional)
+//   - updatedAt: timestamp (optional)
+//
+// Collection: contributions/{contributionId}
+// Document ID: contributionId (unique string)
+// Fields:
+//   - type: string (required, 1-50 chars) - Contribution type (e.g. 'restroom_and_water', 'tip', 'note')
+//   - targetPlaceId: string (required, 1-100 chars) - Associated attraction ID
+//   - content: string/map (required, 1-3000 chars) - Passenger or driver tip / note
+//   - createdAt: timestamp (required, immutable) - Submission timestamp
+//   - contributorUid / userId: string (required, immutable) - Submitter UID
+//   - status / verificationStatus: string (required) - Must be 'pending_review' on create; 'approved'|'rejected' on review
+//   - reviewerUid: string (optional) - Reviewer UID
+//   - reviewerNotes: string (optional, <= 1000 chars)
+//   - reviewedAt: timestamp (optional)
+//   - coordinates: map (optional/null) - Prohibits fake (0, 0)
+//
+// Collection: users/{uid}
+// Document ID: uid (matches Firebase Auth UID)
+// Fields:
+//   - uid: string (optional/matches auth.uid)
+//   - displayName: string (optional, <= 100 chars)
+//   - email: string (optional, valid email <= 150 chars)
+//   - photoUrl: string (optional, URL <= 500 chars)
+//   - phoneNumber: string (optional, <= 30 chars)
+//   - preferredLanguage: string (optional, <= 10 chars)
+//   - role: string (optional) - 'passenger'|'tourist'|'user'|'driver'|'operator'|'reviewer'|'admin'
+//   - agencyId: string (optional, <= 100 chars)
+//   - bio: string (optional, <= 500 chars)
+//   - createdAt: timestamp (optional)
+//   - updatedAt: timestamp (optional)
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Core Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        ('role' in request.auth.token && request.auth.token.role == 'admin') ||
+        ('email' in request.auth.token &&
+         request.auth.token.email.matches('.*@mytourguide\\.admin\\.my$') &&
+         'email_verified' in request.auth.token &&
+         request.auth.token.email_verified == true)
+      );
+    }
+
+    function isOperator() {
+      return isAuthenticated() && ('role' in request.auth.token && request.auth.token.role == 'operator');
+    }
+
+    function isAdminOrOperator() {
+      return isAdmin() || (isAuthenticated() && 'role' in request.auth.token && request.auth.token.role in ['admin', 'operator']);
+    }
+
+    function isReviewerOrAdmin() {
+      return isAdmin() || (isAuthenticated() && 'role' in request.auth.token && request.auth.token.role in ['admin', 'operator', 'reviewer']);
+    }
+
+    function isNumeric(val) {
+      return val is int || val is float;
+    }
+
+    // Guardrail: Coordinates validator
+    // Prohibits fake coordinates (0, 0) and enforces valid WGS84 range
+    function isValidCoordinates(coords) {
+      return coords is map &&
+             isNumeric(coords.lat) &&
+             isNumeric(coords.lng) &&
+             !(coords.lat == 0 && coords.lng == 0) &&
+             !(coords.lat == 0.0 && coords.lng == 0.0) &&
+             coords.lat >= -90.0 && coords.lat <= 90.0 &&
+             coords.lng >= -180.0 && coords.lng <= 180.0;
+    }
+
+    function isValidOptionalCoordinates(coords) {
+      return coords == null || isValidCoordinates(coords);
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+             email.size() <= 150 &&
+             email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string &&
+             url.size() <= 500 &&
+             (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    // Validator for attractions/{placeId}
+    function isValidAttraction(data, placeId) {
+      return data.keys().hasOnly([
+               'placeId', 'name', 'destination', 'category', 'verificationStatus',
+               'suggestedDurationMinutes', 'durationRange', 'shortIntro', 'narration',
+               'coordinates', 'heroVisual', 'tags', 'createdAt', 'updatedAt',
+               'createdBy', 'updatedBy', 'address', 'websiteUrl', 'openingHours'
+             ]) &&
+             data.placeId is string &&
+             data.placeId == placeId &&
+             data.placeId.size() >= 2 &&
+             data.placeId.size() <= 60 &&
+             data.placeId.matches('^[a-z0-9-]+$') &&
+             data.name is map &&
+             data.name.en is string &&
+             data.name.en.size() > 0 &&
+             data.name.en.size() <= 120 &&
+             data.destination is string &&
+             data.destination.size() >= 2 &&
+             data.destination.size() <= 50 &&
+             data.category is string &&
+             data.category in ['heritage', 'culture', 'nature', 'culinary', 'viewpoint', 'activity', 'shopping', 'museum'] &&
+             data.verificationStatus is string &&
+             data.verificationStatus in ['approved', 'pending_review', 'draft', 'rejected'] &&
+             isNumeric(data.suggestedDurationMinutes) &&
+             data.suggestedDurationMinutes > 0 &&
+             data.suggestedDurationMinutes <= 1440 &&
+             data.shortIntro is map &&
+             data.shortIntro.en is string &&
+             data.shortIntro.en.size() > 0 &&
+             data.shortIntro.en.size() <= 1000 &&
+             data.narration is map &&
+             data.narration.en is string &&
+             data.narration.en.size() > 0 &&
+             data.narration.en.size() <= 5000 &&
+             (!('coordinates' in data) || isValidOptionalCoordinates(data.coordinates)) &&
+             (!('durationRange' in data) || (
+               data.durationRange is map &&
+               isNumeric(data.durationRange.minMinutes) &&
+               isNumeric(data.durationRange.maxMinutes) &&
+               data.durationRange.minMinutes <= data.durationRange.maxMinutes
+             )) &&
+             (!('heroVisual' in data) || (
+               data.heroVisual is map &&
+               (!('type' in data.heroVisual) || data.heroVisual.type in ['photo', 'aerial', 'satellite'])
+             )) &&
+             (!('tags' in data) || (data.tags is list && data.tags.size() <= 20)) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    // Validator for tours_published/{tourId}
+    function isValidPublishedTour(data, tourId) {
+      return data.keys().hasOnly([
+               'tourId', 'driverUid', 'agencyId', 'code', 'publishedVersion',
+               'publishedAt', 'title', 'publicationStatus', 'stops', 'owner',
+               'availableLanguages', 'passengerLink', 'coordinates',
+               'routePolyline', 'summary', 'createdAt', 'updatedAt',
+               'startTime', 'scheduleSummary', 'destination'
+             ]) &&
+             data.tourId is string &&
+             data.tourId == tourId &&
+             data.tourId.size() >= 2 &&
+             data.tourId.size() <= 100 &&
+             data.driverUid is string &&
+             data.driverUid.size() >= 1 &&
+             data.driverUid.size() <= 128 &&
+             data.code is string &&
+             data.code.size() >= 3 &&
+             data.code.size() <= 30 &&
+             isNumeric(data.publishedVersion) &&
+             data.publishedVersion >= 1 &&
+             data.publishedAt is timestamp &&
+             data.title is map &&
+             data.title.en is string &&
+             data.title.en.size() > 0 &&
+             data.title.en.size() <= 200 &&
+             data.publicationStatus is string &&
+             data.publicationStatus in ['published', 'archived'] &&
+             data.stops is list &&
+             data.stops.size() <= 60 &&
+             (!('agencyId' in data) || (data.agencyId is string && data.agencyId.size() <= 100)) &&
+             (!('availableLanguages' in data) || (data.availableLanguages is list && data.availableLanguages.size() <= 10)) &&
+             (!('passengerLink' in data) || (data.passengerLink is string && data.passengerLink.size() <= 500)) &&
+             (!('coordinates' in data) || isValidOptionalCoordinates(data.coordinates)) &&
+             (!('routePolyline' in data) || (data.routePolyline is string && data.routePolyline.size() <= 50000)) &&
+             (!('startTime' in data) || (data.startTime is string && data.startTime.size() <= 10)) &&
+             (!('scheduleSummary' in data) || data.scheduleSummary is map) &&
+             (!('destination' in data) || (data.destination is string && data.destination.size() <= 50)) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    // Validator for tours_draft/{tourId}
+    function isValidDraftTour(data, tourId) {
+      return data.keys().hasOnly([
+               'tourId', 'driverUid', 'agencyId', 'code', 'status',
+               'title', 'stops', 'availableLanguages', 'coordinates',
+               'routePolyline', 'notes', 'summary', 'owner', 'createdAt', 'updatedAt',
+               'startTime', 'scheduleSummary', 'destination', 'lastUpdated', 'publicationStatus'
+             ]) &&
+             data.tourId is string &&
+             data.tourId == tourId &&
+             data.tourId.size() >= 2 &&
+             data.tourId.size() <= 100 &&
+             data.driverUid is string &&
+             data.driverUid.size() >= 1 &&
+             data.driverUid.size() <= 128 &&
+             (!('title' in data) || (
+               (data.title is map && (!('en' in data.title) || (data.title.en is string && data.title.en.size() <= 200))) ||
+               (data.title is string && data.title.size() <= 200)
+             )) &&
+             (!('stops' in data) || (data.stops is list && data.stops.size() <= 60)) &&
+             (!('agencyId' in data) || (data.agencyId is string && data.agencyId.size() <= 100)) &&
+             (!('status' in data) || (data.status is string && data.status in ['draft', 'in_progress', 'ready'])) &&
+             (!('code' in data) || (data.code is string && data.code.size() <= 30)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000)) &&
+             (!('availableLanguages' in data) || (data.availableLanguages is list && data.availableLanguages.size() <= 10)) &&
+             (!('coordinates' in data) || isValidOptionalCoordinates(data.coordinates)) &&
+             (!('startTime' in data) || (data.startTime is string && data.startTime.size() <= 10)) &&
+             (!('scheduleSummary' in data) || data.scheduleSummary is map) &&
+             (!('destination' in data) || (data.destination is string && data.destination.size() <= 50)) &&
+             (!('lastUpdated' in data) || (data.lastUpdated is string && data.lastUpdated.size() <= 50) || data.lastUpdated is timestamp) &&
+             (!('publicationStatus' in data) || (data.publicationStatus is string && data.publicationStatus in ['draft', 'published', 'archived'])) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    // Validator for contributions/{contributionId}
+    function isValidContribution(data) {
+      return data.keys().hasOnly([
+               'type', 'targetPlaceId', 'content', 'createdAt',
+               'contributorUid', 'userId', 'authorName', 'sourceType', 'contentType',
+               'title', 'status', 'verificationStatus', 'visibility',
+               'commercialRelationship', 'reviewerUid', 'reviewer',
+               'reviewerNotes', 'reviewedAt', 'verifiedAt', 'coordinates', 'updatedAt'
+             ]) &&
+             (('contributorUid' in data && data.contributorUid is string && data.contributorUid.size() <= 128) ||
+              ('userId' in data && data.userId is string && data.userId.size() <= 128)) &&
+             data.type is string &&
+             data.type.size() >= 1 &&
+             data.type.size() <= 50 &&
+             data.targetPlaceId is string &&
+             data.targetPlaceId.size() >= 1 &&
+             data.targetPlaceId.size() <= 100 &&
+             (
+               (data.content is string && data.content.size() >= 1 && data.content.size() <= 3000) ||
+               (data.content is map && data.content.size() > 0 && data.content.size() <= 20)
+             ) &&
+             data.createdAt is timestamp &&
+             (!('status' in data) || data.status in ['pending_review', 'approved', 'rejected']) &&
+             (!('verificationStatus' in data) || data.verificationStatus in ['pending_review', 'approved', 'rejected']) &&
+             (!('authorName' in data) || (data.authorName is string && data.authorName.size() <= 100)) &&
+             (!('title' in data) || (data.title is string && data.title.size() <= 200)) &&
+             (!('reviewerUid' in data) || (data.reviewerUid is string && data.reviewerUid.size() <= 128)) &&
+             (!('reviewerNotes' in data) || (data.reviewerNotes is string && data.reviewerNotes.size() <= 1000)) &&
+             (!('reviewedAt' in data) || data.reviewedAt is timestamp) &&
+             (!('verifiedAt' in data) || data.verifiedAt is timestamp) &&
+             (!('coordinates' in data) || isValidOptionalCoordinates(data.coordinates)) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    // Validator for users/{uid}
+    function isValidUser(data) {
+      return data.keys().hasOnly([
+               'uid', 'displayName', 'name', 'email', 'photoUrl',
+               'phoneNumber', 'preferredLanguage', 'role', 'agencyId',
+               'bio', 'createdAt', 'updatedAt'
+             ]) &&
+             (!('uid' in data) || (data.uid is string && data.uid.size() <= 128)) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+             (!('name' in data) || (data.name is string && data.name.size() <= 100)) &&
+             (!('email' in data) || isValidEmail(data.email)) &&
+             (!('photoUrl' in data) || data.photoUrl == '' || isValidUrl(data.photoUrl)) &&
+             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() <= 30)) &&
+             (!('preferredLanguage' in data) || (data.preferredLanguage is string && data.preferredLanguage.size() <= 10)) &&
+             (!('role' in data) || (data.role is string && data.role in ['passenger', 'tourist', 'user', 'driver', 'operator', 'reviewer', 'admin'])) &&
+             (!('agencyId' in data) || (data.agencyId is string && data.agencyId.size() <= 100)) &&
+             (!('bio' in data) || (data.bio is string && data.bio.size() <= 500)) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    // Role Escalation Prevention for Users
+    function isUserSelfCreateAllowed(uid) {
+      let isDocOwner = isOwner(uid);
+      let uidValid = !('uid' in request.resource.data) || request.resource.data.uid == uid;
+      let roleSafe = !('role' in request.resource.data) ||
+                     request.resource.data.role in ['passenger', 'tourist', 'user'];
+      return isDocOwner && uidValid && roleSafe;
+    }
+
+    function isUserSelfUpdateAllowed(uid) {
+      let isDocOwner = isOwner(uid);
+      let uidNotTampered = !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
+      let roleNotEscalated = !('role' in request.resource.data) ||
+                             (('role' in resource.data) && request.resource.data.role == resource.data.role) ||
+                             (!('role' in resource.data) && request.resource.data.role in ['passenger', 'tourist', 'user']);
+      let agencyNotEscalated = !('agencyId' in request.resource.data) ||
+                               (('agencyId' in resource.data) && request.resource.data.agencyId == resource.data.agencyId);
+      return isDocOwner && uidNotTampered && roleNotEscalated && agencyNotEscalated;
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // 1. Attractions Library
+    match /attractions/{placeId} {
+      // Public read for verified/approved attractions (passengers without login);
+      // Operators and Admins can view all moderation states
+      allow read: if (resource.data.verificationStatus == 'approved') || isAdminOrOperator();
+
+      // Only authenticated operators or admins can create/update/delete attractions
+      allow create: if isAdminOrOperator() &&
+                       isValidAttraction(request.resource.data, placeId);
+
+      allow update: if isAdminOrOperator() &&
+                       isValidAttraction(request.resource.data, placeId) &&
+                       areImmutableFieldsUnchanged(['placeId', 'createdAt']);
+
+      allow delete: if isAdminOrOperator();
+    }
+
+    // 2. Published Tours (Primary path)
+    match /tours_published/{tourId} {
+      // Public read for all passengers without authentication (allows direct lookup and queries by code)
+      allow read: if true;
+
+      // Create: Authenticated tour-owning driver matching driverUid or admin
+      allow create: if isAuthenticated() &&
+                       (
+                         request.auth.uid == request.resource.data.driverUid ||
+                         isAdmin()
+                       ) &&
+                       isValidPublishedTour(request.resource.data, tourId);
+
+      // Update: Strictly restricted to admin. Published snapshots are immutable historical records.
+      // Ordinary drivers must publish new version snapshot records instead of modifying existing ones.
+      allow update: if isAdmin() &&
+                       isValidPublishedTour(request.resource.data, tourId) &&
+                       areImmutableFieldsUnchanged(['tourId', 'driverUid', 'publishedAt', 'publishedVersion', 'code']);
+
+      // Delete: Strictly restricted to admin. Published snapshots are immutable historical records.
+      allow delete: if isAdmin();
+    }
+
+    // Published Tours Alias (published_tours)
+    match /published_tours/{tourId} {
+      // Public read for all passengers without authentication (allows direct lookup and queries by code)
+      allow read: if true;
+
+      // Create: Authenticated tour-owning driver matching driverUid or admin
+      allow create: if isAuthenticated() &&
+                       (
+                         request.auth.uid == request.resource.data.driverUid ||
+                         isAdmin()
+                       ) &&
+                       isValidPublishedTour(request.resource.data, tourId);
+
+      // Update: Strictly restricted to admin. Published snapshots are immutable historical records.
+      // Ordinary drivers must publish new version snapshot records instead of modifying existing ones.
+      allow update: if isAdmin() &&
+                       isValidPublishedTour(request.resource.data, tourId) &&
+                       areImmutableFieldsUnchanged(['tourId', 'driverUid', 'publishedAt', 'publishedVersion', 'code']);
+
+      // Delete: Strictly restricted to admin. Published snapshots are immutable historical records.
+      allow delete: if isAdmin();
+    }
+
+    // 3. Draft Tours
+    match /tours_draft/{tourId} {
+      // Private read: Only owner driver or admin
+      allow read: if isAuthenticated() &&
+                     (
+                       request.auth.uid == resource.data.driverUid ||
+                       isAdmin()
+                     );
+
+      // Create: Only owner driver or admin
+      allow create: if isAuthenticated() &&
+                       (
+                         request.auth.uid == request.resource.data.driverUid ||
+                         isAdmin()
+                       ) &&
+                       isValidDraftTour(request.resource.data, tourId);
+
+      // Update: Only owner driver or admin
+      allow update: if isAuthenticated() &&
+                       (
+                         request.auth.uid == resource.data.driverUid ||
+                         isAdmin()
+                       ) &&
+                       isValidDraftTour(request.resource.data, tourId) &&
+                       areImmutableFieldsUnchanged(['tourId', 'driverUid']);
+
+      // Delete: Only owner driver or admin
+      allow delete: if isAuthenticated() &&
+                       (
+                         request.auth.uid == resource.data.driverUid ||
+                         isAdmin()
+                       );
+    }
+
+    // 4. Community & Passenger Contributions
+    match /contributions/{contributionId} {
+      // Read: Author contributor or reviewers/operators/admins
+      allow read: if isAuthenticated() &&
+                     (
+                       ('contributorUid' in resource.data && request.auth.uid == resource.data.contributorUid) ||
+                       ('userId' in resource.data && request.auth.uid == resource.data.userId) ||
+                       isReviewerOrAdmin()
+                     );
+
+      // Create: Authenticated user with required fields (type, targetPlaceId, content, createdAt).
+      // Mandatory default status: must be 'pending_review'
+      allow create: if isAuthenticated() &&
+                       (
+                         ('contributorUid' in request.resource.data && request.resource.data.contributorUid == request.auth.uid) ||
+                         ('userId' in request.resource.data && request.resource.data.userId == request.auth.uid)
+                       ) &&
+                       isValidContribution(request.resource.data) &&
+                       (!('status' in request.resource.data) || request.resource.data.status == 'pending_review') &&
+                       (!('verificationStatus' in request.resource.data) || request.resource.data.verificationStatus == 'pending_review') &&
+                       (
+                         ('status' in request.resource.data && request.resource.data.status == 'pending_review') ||
+                         ('verificationStatus' in request.resource.data && request.resource.data.verificationStatus == 'pending_review')
+                       );
+
+      // Update: Only reviewers/admins can update moderation status ('approved', 'rejected').
+      // Content, author, and timestamp are protected from alteration.
+      allow update: if isReviewerOrAdmin() &&
+                       isValidContribution(request.resource.data) &&
+                       (
+                         ('status' in request.resource.data && request.resource.data.status in ['approved', 'rejected']) ||
+                         ('verificationStatus' in request.resource.data && request.resource.data.verificationStatus in ['approved', 'rejected'])
+                       ) &&
+                       areImmutableFieldsUnchanged(['type', 'targetPlaceId', 'content', 'createdAt', 'contributorUid', 'userId']);
+
+      // Delete: Only reviewers/admins
+      allow delete: if isReviewerOrAdmin();
+    }
+
+    // 5. User Profiles (PII Separation & Lockdown)
+    match /users/{uid} {
+      // Read: User themselves or admin (strictly prevents public PII harvesting)
+      allow read: if isOwner(uid) || isAdmin();
+
+      // Create: User themselves (safe unprivileged profile) or admin
+      allow create: if isAuthenticated() &&
+                       isValidUser(request.resource.data) &&
+                       (isUserSelfCreateAllowed(uid) || isAdmin());
+
+      // Update: User themselves (profile only, strictly prohibited from privilege escalation) or admin
+      allow update: if isAuthenticated() &&
+                       isValidUser(request.resource.data) &&
+                       (isUserSelfUpdateAllowed(uid) || isAdmin()) &&
+                       areImmutableFieldsUnchanged(['uid']);
+
+      // Delete: User themselves or admin
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    // ===============================================================
+    // Global Catch-all: Deny all unhandled paths
+    // ===============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

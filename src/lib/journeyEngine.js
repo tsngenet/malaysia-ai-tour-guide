@@ -24,14 +24,16 @@ export const JOURNEY_STATUS = {
 export function resolveStopDetails(stop, lang = 'en') {
   if (!stop) return null;
 
-  if (stop.isCustom) {
+  const attraction = stop.attractionId ? ATTRACTIONS[stop.attractionId] : null;
+
+  if (stop.isCustom || !stop.attractionId) {
     return {
       stopId: stop.stopId,
       isCustom: true,
       placeId: null,
-      name: stop.title?.[lang] || stop.title?.en || 'Tour Stop',
-      coordinates: stop.coordinates,
-      triggerRadiusMeters: stop.triggerRadiusMeters || 500,
+      name: stop.title?.[lang] || stop.title?.en || (attraction ? (attraction.name?.[lang] || attraction.name?.en) : 'Tour Stop'),
+      coordinates: stop.coordinates || (attraction ? attraction.coordinates : null),
+      triggerRadiusMeters: stop.triggerRadiusMeters || (attraction ? attraction.triggerRadiusMeters : 500),
       shortIntro: stop.customNarration?.[lang] || stop.customNarration?.en || '',
       narration: stop.customNarration?.[lang] || stop.customNarration?.en || '',
       interestingFacts: [],
@@ -41,14 +43,13 @@ export function resolveStopDetails(stop, lang = 'en') {
     };
   }
 
-  const attraction = ATTRACTIONS[stop.attractionId];
   if (!attraction) {
     return {
       stopId: stop.stopId,
       isCustom: false,
       placeId: stop.attractionId,
-      name: 'Stop ' + stop.stopId,
-      coordinates: { lat: 0, lng: 0 },
+      name: stop.title?.[lang] || stop.title?.en || ('Stop ' + stop.stopId),
+      coordinates: stop.coordinates || null,
       triggerRadiusMeters: stop.triggerRadiusMeters || 500,
       shortIntro: '',
       narration: '',
@@ -94,7 +95,13 @@ export function evaluateJourneyProgress({ currentPos, stops, currentIndex = 0, v
   const resolvedList = stops.map((stop, idx) => {
     const details = resolveStopDetails(stop, lang);
     let distance = null;
-    if (currentPos && details.coordinates) {
+    if (
+      currentPos &&
+      details.coordinates &&
+      typeof details.coordinates.lat === 'number' &&
+      typeof details.coordinates.lng === 'number' &&
+      !(details.coordinates.lat === 0 && details.coordinates.lng === 0)
+    ) {
       distance = distanceMetres(
         currentPos.lat,
         currentPos.lng,

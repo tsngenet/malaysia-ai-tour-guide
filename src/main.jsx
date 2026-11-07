@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
-import { TOURS, DEFAULT_TOUR_ID, getTourById, getToursStore } from './data/tours.js';
+import { TOURS, DEFAULT_TOUR_ID, getTourById, getToursStore, fetchTourByIdOrCodeAsync } from './data/tours.js';
 import { evaluateJourneyProgress, JOURNEY_STATUS } from './lib/journeyEngine.js';
 import { getTranslation } from './lib/i18n.js';
 import { LandingPage } from './components/LandingPage.jsx';
@@ -65,8 +65,14 @@ function App() {
   const [screen, setScreen] = useState(initialRoute.screen);
   const [language, setLanguage] = useState('en');
   const [activeTour, setActiveTour] = useState(() => {
-    return getTourById(initialRoute.tourId || DEFAULT_TOUR_ID);
+    if (initialRoute.tourId) {
+      const match = getTourById(initialRoute.tourId, false);
+      if (match) return match;
+    }
+    return getTourById(DEFAULT_TOUR_ID, true) || TOURS[DEFAULT_TOUR_ID];
   });
+  const [tourError, setTourError] = useState(null);
+  const [isLoadingTour, setIsLoadingTour] = useState(false);
   const [activePlaceId, setActivePlaceId] = useState(initialRoute.placeId || 'batu-caves');
   const [currentStopIndex, setCurrentStopIndex] = useState(0);
   const [visitedStopIds, setVisitedStopIds] = useState(() => new Set());
@@ -81,12 +87,66 @@ function App() {
   const [showShare, setShowShare] = useState(false);
   const [showItinerary, setShowItinerary] = useState(false);
 
+  // On mount: resolve remote tour or invalid code (Requirement 9)
+  useEffect(() => {
+    if (initialRoute.tourId) {
+      const local = getTourById(initialRoute.tourId, false);
+      if (local) {
+        setActiveTour(local);
+        setTourError(null);
+      } else {
+        setIsLoadingTour(true);
+        fetchTourByIdOrCodeAsync(initialRoute.tourId).then((fetched) => {
+          setIsLoadingTour(false);
+          if (fetched) {
+            setActiveTour(fetched);
+            setTourError(null);
+          } else {
+            setTourError({
+              code: initialRoute.tourId,
+              message: 'Tour itinerary was not found or has expired.'
+            });
+          }
+        }).catch(() => {
+          setIsLoadingTour(false);
+          setTourError({
+            code: initialRoute.tourId,
+            message: 'Unable to load tour itinerary at this time.'
+          });
+        });
+      }
+    }
+  }, [initialRoute.tourId]);
+
   // Route Synchronization Helper
   const navigateTo = useCallback((newScreen, params = {}) => {
     setScreen(newScreen);
     if (params.tourId) {
-      const tour = getTourById(params.tourId);
-      if (tour) setActiveTour(tour);
+      const local = getTourById(params.tourId, false);
+      if (local) {
+        setActiveTour(local);
+        setTourError(null);
+      } else {
+        setIsLoadingTour(true);
+        fetchTourByIdOrCodeAsync(params.tourId).then((fetched) => {
+          setIsLoadingTour(false);
+          if (fetched) {
+            setActiveTour(fetched);
+            setTourError(null);
+          } else {
+            setTourError({
+              code: params.tourId,
+              message: 'Tour itinerary was not found or has expired.'
+            });
+          }
+        }).catch(() => {
+          setIsLoadingTour(false);
+          setTourError({
+            code: params.tourId,
+            message: 'Unable to load tour itinerary.'
+          });
+        });
+      }
     }
     if (params.placeId) {
       setActivePlaceId(params.placeId);
@@ -116,8 +176,25 @@ function App() {
       const parsed = parseRouteFromUrl();
       setScreen(parsed.screen);
       if (parsed.tourId) {
-        const found = getTourById(parsed.tourId);
-        if (found) setActiveTour(found);
+        const local = getTourById(parsed.tourId, false);
+        if (local) {
+          setActiveTour(local);
+          setTourError(null);
+        } else {
+          setIsLoadingTour(true);
+          fetchTourByIdOrCodeAsync(parsed.tourId).then((fetched) => {
+            setIsLoadingTour(false);
+            if (fetched) {
+              setActiveTour(fetched);
+              setTourError(null);
+            } else {
+              setTourError({
+                code: parsed.tourId,
+                message: 'Tour itinerary was not found or has expired.'
+              });
+            }
+          });
+        }
       }
       if (parsed.placeId) {
         setActivePlaceId(parsed.placeId);
@@ -215,8 +292,65 @@ function App() {
 
   return (
     <main className="app-shell">
+      {/* Tour Not Found Error Screen (Requirement 9) */}
+      {tourError && (
+        <div className="tour-error-screen" data-testid="tour-error-screen">
+          <div className="tour-error-card">
+            <div className="tour-error-badge">TOUR NOT FOUND</div>
+            <h2 className="tour-error-title">Tour Itinerary Not Available</h2>
+            <p className="tour-error-text">
+              The tour code or link <strong className="tour-code-highlight">"{tourError.code}"</strong> could not be located.
+              The itinerary may have expired, or the code was mistyped.
+            </p>
+            <div className="tour-error-actions">
+              <button
+                type="button"
+                className="btn-primary-pill"
+                onClick={() => {
+                  setTourError(null);
+                  navigateTo(SCREENS.LANDING);
+                }}
+                data-testid="btn-enter-another-code"
+              >
+                Enter Another Tour Code
+              </button>
+              <button
+                type="button"
+                className="btn-secondary-pill"
+                onClick={() => {
+                  setTourError(null);
+                  const def = getTourById(DEFAULT_TOUR_ID, true);
+                  if (def) setActiveTour(def);
+                  navigateTo(SCREENS.WELCOME, { tourId: DEFAULT_TOUR_ID });
+                }}
+              >
+                View Sample Tour (KL - Melaka)
+              </button>
+              <button
+                type="button"
+                className="btn-link-action"
+                onClick={() => {
+                  setTourError(null);
+                  navigateTo(SCREENS.OPERATOR_BUILDER);
+                }}
+              >
+                Go to Driver Route Builder →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tour Loading Overlay */}
+      {isLoadingTour && (
+        <div className="tour-loading-screen" data-testid="tour-loading-screen">
+          <div className="tour-loading-spinner" />
+          <p className="tour-loading-text">Loading tour itinerary...</p>
+        </div>
+      )}
+
       {/* 1. Public Marketing Landing & Tour Code Entry */}
-      {screen === SCREENS.LANDING && (
+      {!tourError && screen === SCREENS.LANDING && (
         <LandingPage
           onStartTourWithCode={(tourId) => navigateTo(SCREENS.WELCOME, { tourId })}
           onExploreDefaultTour={() => navigateTo(SCREENS.WELCOME, { tourId: DEFAULT_TOUR_ID })}
@@ -225,7 +359,7 @@ function App() {
       )}
 
       {/* 2. Direct Passenger Welcome Screen (Language selector & Start Tour) */}
-      {screen === SCREENS.WELCOME && (
+      {!tourError && screen === SCREENS.WELCOME && (
         <WelcomeScreen
           language={language}
           onSelectLanguage={setLanguage}

@@ -15,6 +15,7 @@ import {
   connectAuthEmulator,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut,
   onAuthStateChanged
 } from 'firebase/auth';
@@ -148,7 +149,7 @@ export function onDriverAuthStateChanged(callback) {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName || (user.email ? user.email.split('@')[0] : 'Driver'),
-        role: 'driver'
+        role: 'user'
       };
       if (typeof window !== 'undefined') {
         localStorage.setItem(DRIVER_SESSION_KEY, JSON.stringify(session));
@@ -179,7 +180,7 @@ export async function loginDriver(email, password) {
     } catch (authErr) {
       // If running on local emulator and user is not found, provision on the fly
       if (
-        isLocalhost &&
+        shouldConnectEmulator &&
         (authErr.code === 'auth/user-not-found' ||
          authErr.code === 'auth/invalid-credential' ||
          authErr.code === 'auth/invalid-login-credentials')
@@ -195,7 +196,7 @@ export async function loginDriver(email, password) {
       uid: user.uid,
       email: user.email,
       displayName: user.displayName || (user.email ? user.email.split('@')[0] : 'Driver'),
-      role: 'driver',
+      role: 'user',
       loginTimestamp: new Date().toISOString()
     };
 
@@ -210,7 +211,6 @@ export async function loginDriver(email, password) {
         uid: user.uid,
         email: user.email,
         displayName: session.displayName,
-        role: 'driver',
         updatedAt: serverTimestamp()
       }, { merge: true });
     } catch (e) {
@@ -219,9 +219,47 @@ export async function loginDriver(email, password) {
 
     return session;
   } catch (err) {
-    console.error('Firebase Auth driver login error:', err);
-    throw new Error(err.message || 'Driver authentication failed.');
+    console.error('Firebase Auth driver login error:', err.code || err.message);
+    throw err;
   }
+}
+
+/** Register a new driver account without granting privileged Firebase roles. */
+export async function registerDriver(email, password) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail || !password) throw new Error('Email and password are required.');
+  if (password.length < 8) throw new Error('Use a password with at least 8 characters.');
+  const credential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+  const user = credential.user;
+  const session = {
+    uid: user.uid, email: user.email,
+    displayName: user.displayName || normalizedEmail.split('@')[0],
+    role: 'user'
+  };
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(DRIVER_SESSION_KEY, JSON.stringify(session));
+  }
+  // Firestore only permits self-registration with an unprivileged role.
+  // The signed-in owner can still create their own tour drafts and snapshots.
+  try {
+    await setDoc(doc(db, 'users', user.uid), {
+      uid: user.uid,
+      email: user.email,
+      displayName: session.displayName,
+      role: 'user',
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Account created but user profile could not be saved:', err.code || err.message);
+  }
+  return session;
+}
+
+/** Send a reset link without exposing whether an email is registered. */
+export async function requestDriverPasswordReset(email) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) throw new Error('Enter your email address first.');
+  await sendPasswordResetEmail(auth, normalizedEmail);
 }
 
 /**

@@ -15,6 +15,8 @@ import {
   getDriverSession,
   onDriverAuthStateChanged,
   loginDriver,
+  registerDriver,
+  requestDriverPasswordReset,
   logoutDriver,
   saveDraftTour,
   publishTourSnapshot
@@ -70,16 +72,17 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
   // Driver Authentication State (Phase 1C: Genuine Firebase Auth)
   const [driverSession, setDriverSession] = useState(() => getDriverSession());
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [loginEmail, setLoginEmail] = useState('driver@mytguide.my');
-  const [loginPassword, setLoginPassword] = useState('DriveSafe2026!');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [authMode, setAuthMode] = useState('login');
   const [loginError, setLoginError] = useState('');
+  const [loginNotice, setLoginNotice] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   useEffect(() => {
     const unsub = onDriverAuthStateChanged((session) => {
-      if (session) {
-        setDriverSession(session);
-      }
+      setDriverSession(session);
     });
     return () => unsub();
   }, []);
@@ -87,15 +90,47 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
   async function handleDriverLogin(e) {
     if (e) e.preventDefault();
     setLoginError('');
+    setLoginNotice('');
+    if (authMode === 'register' && loginPassword !== confirmPassword) {
+      setLoginError('Passwords do not match.');
+      return;
+    }
     setIsLoggingIn(true);
     try {
-      const session = await loginDriver(loginEmail, loginPassword);
+      const session = authMode === 'register'
+        ? await registerDriver(loginEmail, loginPassword)
+        : await loginDriver(loginEmail.trim(), loginPassword);
       setDriverSession(session);
       setShowLoginModal(false);
-      setSaveMessage(`✓ Logged in as ${session.displayName || session.email}`);
+      setLoginPassword('');
+      setConfirmPassword('');
+      setSaveMessage(authMode === 'register' ? '✓ Account created and signed in' : '✓ Signed in successfully');
       setTimeout(() => setSaveMessage(''), 3000);
     } catch (err) {
-      setLoginError(err.message || 'Driver authentication failed.');
+      const code = err?.code || '';
+      const friendlyErrors = {
+        'auth/email-already-in-use': 'This email is already registered. Sign in or reset your password.',
+        'auth/invalid-email': 'Enter a valid email address.',
+        'auth/weak-password': 'Choose a stronger password.',
+        'auth/invalid-credential': 'Email or password is incorrect. You can register a new account.',
+        'auth/operation-not-allowed': 'Email/password registration is not enabled for this Firebase project.',
+        'auth/too-many-requests': 'Too many attempts. Please try again later.'
+      };
+      setLoginError(friendlyErrors[code] || 'Authentication failed. Please try again.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  }
+
+  async function handlePasswordReset() {
+    setLoginError('');
+    setLoginNotice('');
+    setIsLoggingIn(true);
+    try {
+      await requestDriverPasswordReset(loginEmail);
+      setLoginNotice('If the email is registered, password reset instructions will be sent.');
+    } catch (err) {
+      setLoginError(err?.code === 'auth/invalid-email' ? 'Enter a valid email address.' : 'Unable to send reset email right now.');
     } finally {
       setIsLoggingIn(false);
     }
@@ -1108,10 +1143,13 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
         <div className="modal-backdrop" onClick={() => setShowLoginModal(false)}>
           <div className="modal-card driver-login-card" onClick={(e) => e.stopPropagation()} data-testid="driver-login-modal">
             <div className="modal-icon-header">🔑</div>
-            <h2>Driver Authentication</h2>
-            <p className="modal-sub">Sign in to publish itineraries and manage route drafts securely.</p>
+            <h2>{authMode === 'register' ? 'Register New Driver' : 'Driver Authentication'}</h2>
+            <p className="modal-sub">{authMode === 'register'
+              ? 'Create your own account to save routes and publish itineraries.'
+              : 'Sign in to publish itineraries and manage route drafts securely.'}</p>
 
             {loginError && <div className="auth-error-banner" data-testid="auth-error-banner">{loginError}</div>}
+            {loginNotice && <p role="status" className="modal-sub">{loginNotice}</p>}
 
             <form onSubmit={handleDriverLogin} className="driver-login-form">
               <div className="form-group">
@@ -1140,10 +1178,43 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
                 />
               </div>
 
-              <div className="demo-credentials-hint">
-                <span>Demo Account: <code>driver@mytguide.my</code> / <code>DriveSafe2026!</code></span>
+              {authMode === 'register' && (
+                <div className="form-group">
+                  <label className="form-label" htmlFor="driver-register-confirm">Confirm Password</label>
+                  <input
+                    id="driver-register-confirm"
+                    type="password"
+                    className="form-input"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+                </div>
+              )}
+              <div className="modal-actions-row">
+                <button
+                  type="button"
+                  className="btn-subtle"
+                  disabled={isLoggingIn}
+                  onClick={() => {
+                    setAuthMode(authMode === 'login' ? 'register' : 'login');
+                    setLoginError('');
+                    setLoginNotice('');
+                    setLoginPassword('');
+                    setConfirmPassword('');
+                  }}
+                  data-testid="register-driver-switch"
+                >
+                  {authMode === 'login' ? 'Register New Driver' : 'Already registered? Sign In'}
+                </button>
+                {authMode === 'login' && (
+                  <button type="button" className="btn-subtle" disabled={isLoggingIn || !loginEmail.trim()} onClick={handlePasswordReset}>
+                    Forgot Password?
+                  </button>
+                )}
               </div>
-
               <div className="modal-actions-row">
                 <button
                   type="button"
@@ -1158,7 +1229,7 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
                   disabled={isLoggingIn}
                   data-testid="login-submit-btn"
                 >
-                  {isLoggingIn ? 'Signing In...' : 'Sign In as Driver'}
+                  {isLoggingIn ? (authMode === 'register' ? 'Creating Account...' : 'Signing In...') : (authMode === 'register' ? 'Create Driver Account' : 'Sign In as Driver')}
                 </button>
               </div>
             </form>

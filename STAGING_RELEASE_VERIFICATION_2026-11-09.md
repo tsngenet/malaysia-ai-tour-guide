@@ -58,3 +58,18 @@ Edited: https://msiatguide-staging--staging-phase1-0kpbvc8c.web.app/?tour=MYTG-2
 5. Begin AdSense readiness only after production is stable.
 
 **Current decision:** staging-tested release candidate; production website remains untouched. Production readiness means code/QA is prepared, not that production deployment is authorized or finished.
+
+## Final production preflight addendum (2026-11-09)
+
+**Production authentication:** Read-only Identity Toolkit Admin API confirmed Email/Password enabled and authorized domains `msiatguide.firebaseapp.com`, `msiatguide.web.app`.
+**Production Firestore rules:** Active deployed ruleset SHA-256 (normalized newlines) exactly matched the tested checked-in `firestore.rules`. Its public tour read and restrictive ownership rules passed the local Firestore emulator tests (25/25).
+**Anonymous production Firestore query:** Actual Firebase client query `tours_published` by a deliberately nonexistent code completed successfully without authentication; no production record created.
+**App Check:** API returned no configured service enforcement entries; no evidence of blocking web clients.
+**Production Storage:** API reported no Storage bucket. Image uploads are NOT a working feature in this hosting-only release; current frontend does not call Storage upload APIs.
+**Rollback:** Preserved previous live Hosting release in channel `pre-release-20261109` at https://msiatguide--pre-release-20261109-uz73z0oc.web.app
+**Existing production Hosting release:** version `79e3496cd46d8498` (2026-11-07). No live deployment performed during preflight.
+**Staging preview refreshed:** version `0d5a9833c1ad6b35`; URL https://msiatguide-staging--staging-phase1-0kpbvc8c.web.app
+**Final guided-question repair:** Firebase Hosting uses prepared guide notes without making broken POST requests to `/api/ask`; clearly labeled `Built-in guide notes (not live AI)`. Config flag `VITE_GUIDE_API_ENABLED` must explicitly be `true` only after a real backend is deployed.
+**Chrome staging smoke:** Logged-out passenger tour `MYTG-20261109-TXSU` loaded and advanced to Batu Caves. Ask Guide opened and returned notes. Label and no-live-AI notice both appeared; zero requests to `/api/ask`; no unhandled errors.
+**Limitations:** Live generative AI Q&A is not yet deployed; real road travel times are not provided, and photo uploads have no production Storage bucket. Do not market these as working features. Ads/Exa remain deferred.
+**Release decision:** Core itinerary/QR/passenger pilot meets tested release criteria. Hosting-only production deployment allowed following explicit user approval; no database or rule writes are part of this deployment.

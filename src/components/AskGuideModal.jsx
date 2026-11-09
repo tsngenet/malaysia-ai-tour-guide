@@ -9,6 +9,9 @@ export function AskGuideModal({ currentStop, tour, language, onClose }) {
   const [answer, setAnswer] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [answerSource, setAnswerSource] = useState('prepared');
+  // Firebase Hosting is static; only contact a guide API after a real backend is configured.
+  const hasLiveGuideApi = import.meta.env.VITE_GUIDE_API_ENABLED === 'true';
 
   const t = (k) => getTranslation(language, k);
 
@@ -61,6 +64,18 @@ export function AskGuideModal({ currentStop, tour, language, onClose }) {
       : '';
 
     try {
+      if (!hasLiveGuideApi) {
+        // Production's Hosting rewrite serves HTML at /api/ask; do not make a fake API call.
+        setAnswerSource('prepared');
+        setAnswer(generateGroundedAnswer({
+          question: query,
+          placeName: currentStop?.name || '',
+          stop: currentStop,
+          knowledgeContext,
+          language
+        }));
+        return;
+      }
       const res = await fetch('/api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -78,6 +93,7 @@ export function AskGuideModal({ currentStop, tour, language, onClose }) {
       if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
         if (data.answer) {
+          setAnswerSource('server');
           setAnswer(data.answer);
           return;
         }
@@ -92,6 +108,7 @@ export function AskGuideModal({ currentStop, tour, language, onClose }) {
         knowledgeContext,
         language
       });
+      setAnswerSource('prepared');
       setAnswer(fallbackAns);
     } finally {
       setLoading(false);
@@ -107,7 +124,9 @@ export function AskGuideModal({ currentStop, tour, language, onClose }) {
           <div className="header-info-group">
             <h2 className="modal-title">{t('askGuide')}</h2>
             <p className="modal-subtitle">
-              Curious about what you're seeing? Ask anything.
+              {hasLiveGuideApi
+                ? 'Explore this stop with our guide.'
+                : 'Explore prepared guide notes. Live AI answers are not enabled yet.'}
             </p>
             {currentStop?.name && (
               <span className="location-context-tag">
@@ -155,9 +174,12 @@ export function AskGuideModal({ currentStop, tour, language, onClose }) {
           {answer && (
             <div className="guide-response-card success">
               <div className="guide-response-header">
-                <span className="guide-badge-pill">🇲🇾 Vetted Knowledge</span>
+                <span className="guide-badge-pill">{answerSource === 'prepared' ? '📖 Built-in guide notes (not live AI)' : 'Guide server response'}</span>
               </div>
               <p className="guide-answer-text">{answer}</p>
+              {answerSource === 'prepared' && (
+                <p className="modal-sub">This is prepared tour information, not a live AI answer. Verify current hours, prices and visitor rules with the venue.</p>
+              )}
             </div>
           )}
         </div>

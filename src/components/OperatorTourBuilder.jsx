@@ -5,6 +5,7 @@ import { DESTINATIONS, ATTRACTION_CATEGORIES } from '../data/attractionSchema.js
 import { ROUTE_TEMPLATES, getRouteTemplateById } from '../data/routeTemplates.js';
 import { TOURS, DEFAULT_TOUR_ID, getToursStore, saveTourToStore } from '../data/tours.js';
 import { SUPPORTED_LANGUAGES } from '../lib/i18n.js';
+import { parseOptionalCoordinates } from '../lib/tourSerialization.js';
 import {
   calculateSchedule,
   generateTourCode,
@@ -46,12 +47,15 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDestination, setSelectedDestination] = useState('All');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  // Mobile-only workspace switcher; on larger screens both panels remain visible.
+  const [mobilePanel, setMobilePanel] = useState('itinerary');
   
   // Custom stop modal state
   const [showCustomModal, setShowCustomModal] = useState(false);
   const [customTitle, setCustomTitle] = useState('');
-  const [customLat, setCustomLat] = useState('3.1472');
-  const [customLng, setCustomLng] = useState('101.6995');
+  const [customLat, setCustomLat] = useState('');
+  const [customLng, setCustomLng] = useState('');
+  const [customCoordError, setCustomCoordError] = useState('');
   const [customDuration, setCustomDuration] = useState('45');
   const [customNarration, setCustomNarration] = useState('');
   
@@ -319,22 +323,15 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
     setStops([...stops, newStop]);
   }
 
-  // Open custom stop modal with smart default coordinates from preceding stop
+  // A new stop is location-unverified until its own coordinates are supplied.
+  // Never inherit a previous stop's location or suggest a fake KL pin.
   function openCustomStopModal() {
-    let defaultLat = '3.1472';
-    let defaultLng = '101.6995';
-    for (let i = stops.length - 1; i >= 0; i--) {
-      const s = stops[i];
-      const att = s.attractionId ? ATTRACTIONS[s.attractionId] : null;
-      const c = s.coordinates || att?.coordinates;
-      if (c && typeof c.lat === 'number' && typeof c.lng === 'number' && !(c.lat === 0 && c.lng === 0)) {
-        defaultLat = String(c.lat.toFixed(4));
-        defaultLng = String(c.lng.toFixed(4));
-        break;
-      }
-    }
-    setCustomLat(defaultLat);
-    setCustomLng(defaultLng);
+    setCustomTitle('');
+    setCustomLat('');
+    setCustomLng('');
+    setCustomCoordError('');
+    setCustomDuration('45');
+    setCustomNarration('');
     setShowCustomModal(true);
   }
 
@@ -342,9 +339,12 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
   function handleSaveCustomStop() {
     if (!customTitle.trim()) return;
     const lastDay = stops.length > 0 ? (stops[stops.length - 1].day || 1) : 1;
-    const parsedLat = parseFloat(customLat);
-    const parsedLng = parseFloat(customLng);
-    const hasValidCoords = !isNaN(parsedLat) && !isNaN(parsedLng) && !(parsedLat === 0 && parsedLng === 0);
+    const location = parseOptionalCoordinates(customLat, customLng);
+    if (!location.valid) {
+      setCustomCoordError('Enter both valid coordinates, or leave both blank to save this stop without a GPS pin.');
+      return;
+    }
+    setCustomCoordError('');
 
     const newStop = {
       stopId: `custom-${Date.now()}`,
@@ -354,15 +354,12 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
         zh: customTitle.trim(),
         ms: customTitle.trim()
       },
-      coordinates: hasValidCoords ? { lat: parsedLat, lng: parsedLng } : null,
+      coordinates: location.coordinates,
       triggerRadiusMeters: 500,
       durationMinutes: Number(customDuration) || 45,
       day: lastDay,
-      customNarration: {
-        en: customNarration.trim() || 'A custom scenic or cultural stop along our journey.',
-        zh: customNarration.trim() || '旅程中的自选景点停靠。',
-        ms: customNarration.trim() || 'Hentian tersuai sepanjang perjalanan kita.'
-      }
+      // Never invent narration or label English text as a verified translation.
+      ...(customNarration.trim() ? { customNarration: { en: customNarration.trim() } } : {})
     };
 
     setStops([...stops, newStop]);
@@ -407,8 +404,13 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
       return;
     }
 
+    // Each driver's saved draft must have its own ID. Never reuse the shared sample tour
+    // or overwrite the immutable published record when editing a completed itinerary.
+    const needsNewDraft = !activeTour.tourId || activeTour.tourId === DEFAULT_TOUR_ID || activeTour.publicationStatus === 'published';
+    const freshCode = needsNewDraft ? generateTourCode() : (activeTour.code || generateTourCode());
     const draft = {
       ...activeTour,
+      ...(needsNewDraft ? { tourId: `custom-tour-${freshCode.toLowerCase()}`, code: freshCode, publishedVersion: 0 } : {}),
       title: {
         ...activeTour.title,
         en: titleEn || activeTour.title?.en || 'Custom Tour'
@@ -441,14 +443,18 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
       return;
     }
 
-    const isDefault = !activeTour.tourId || activeTour.tourId === DEFAULT_TOUR_ID;
-    const newCode = (!isDefault && activeTour.code && activeTour.code !== 'MYTG-8812') ? activeTour.code : generateTourCode();
-    const newTourId = isDefault ? `custom-tour-${Date.now().toString(36)}` : activeTour.tourId;
+    // Firestore snapshots are immutable: publishing edits to an already published tour
+    // must generate a new tour ID and passenger code rather than silently fail to update.
+    const requiresNewIdentity = !activeTour.tourId || activeTour.tourId === DEFAULT_TOUR_ID || activeTour.publicationStatus === 'published';
+    const newCode = requiresNewIdentity || !activeTour.code || activeTour.code === 'MYTG-8812'
+      ? generateTourCode() : activeTour.code;
+    const newTourId = requiresNewIdentity ? `custom-tour-${newCode.toLowerCase()}` : activeTour.tourId;
 
     const draft = {
       ...activeTour,
       tourId: newTourId,
       code: newCode,
+      ...(requiresNewIdentity ? { publishedVersion: 0 } : {}),
       title: {
         ...activeTour.title,
         en: titleEn || activeTour.title?.en || 'Malaysia Tour'
@@ -459,20 +465,25 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
       driverUid: driverSession.uid
     };
 
-    const snapshot = createPublishedSnapshot(draft);
-    setActiveTour(snapshot);
-    saveTourToStore(snapshot);
-    setPublishedSnapshot(snapshot);
+    const snapshot = createPublishedSnapshot(draft, {
+      passengerOrigin: typeof window !== 'undefined' ? window.location.origin : undefined
+    });
 
     try {
+      // Never show a passenger QR unless Firestore confirms this published snapshot exists.
       await publishTourSnapshot(snapshot);
+      setActiveTour(snapshot);
+      saveTourToStore(snapshot);
+      setPublishedSnapshot(snapshot);
       setSaveMessage(`✓ Tour Published Successfully! Code: ${snapshot.code}`);
+      setShowQrModal(true);
     } catch (err) {
-      console.warn('Remote publish warning:', err);
-      setSaveMessage(`✓ Tour Published locally! Code: ${snapshot.code}`);
+      console.error('Cloud publication failed:', err);
+      // Keep editable draft locally, but do not misrepresent it as publicly available.
+      saveTourToStore({ ...draft, publicationStatus: 'draft' });
+      setSaveMessage('⚠️ Publication failed. Your itinerary remains a draft; no passenger link is available. Please retry.');
+      setShowQrModal(false);
     }
-
-    setShowQrModal(true);
   }
 
   function handleCopyLink(linkToCopy) {
@@ -640,8 +651,17 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
         </div>
       </div>
 
+      {/* Quick access on phones: avoid forcing drivers to scroll through all itinerary cards. */}
+      <nav className="operator-mobile-switcher" aria-label="Driver workspace sections">
+        <button type="button" className={mobilePanel === 'itinerary' ? 'active' : ''}
+          aria-pressed={mobilePanel === 'itinerary'} onClick={() => setMobilePanel('itinerary')}
+          data-testid="mobile-itinerary-tab">🗓 My Itinerary ({stops.length})</button>
+        <button type="button" className={mobilePanel === 'catalog' ? 'active' : ''}
+          aria-pressed={mobilePanel === 'catalog'} onClick={() => setMobilePanel('catalog')}
+          data-testid="mobile-catalog-tab">📍 Attractions ({filteredAttractions.length})</button>
+      </nav>
       {/* Main Two-Column Layout: Itinerary Workspace & Attraction Library */}
-      <div className="builder-main-grid">
+      <div className="builder-main-grid" data-mobile-panel={mobilePanel}>
         {/* Left Column: Itinerary Workspace */}
         <div className="workspace-column">
           <div className="operator-section-card">
@@ -1012,27 +1032,29 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
               />
             </div>
 
+            <p className="modal-sub">GPS coordinates are optional. Leave both blank if you do not know the exact place; the stop will be saved without location-triggered narration.</p>
             <div className="form-row-2col">
               <div className="form-group">
-                <label className="form-label">Latitude</label>
+                <label className="form-label">Latitude (optional)</label>
                 <input
                   type="text"
                   className="form-input"
                   value={customLat}
-                  onChange={(e) => setCustomLat(e.target.value)}
+                  onChange={(e) => { setCustomLat(e.target.value); setCustomCoordError(''); }}
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Longitude</label>
+                <label className="form-label">Longitude (optional)</label>
                 <input
                   type="text"
                   className="form-input"
                   value={customLng}
-                  onChange={(e) => setCustomLng(e.target.value)}
+                  onChange={(e) => { setCustomLng(e.target.value); setCustomCoordError(''); }}
                 />
               </div>
             </div>
 
+            {customCoordError && <p role="alert" className="auth-error-banner">{customCoordError}</p>}
             <div className="form-group">
               <label className="form-label">Visit Duration (Minutes)</label>
               <input

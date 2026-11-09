@@ -237,7 +237,9 @@ export function createPublishedSnapshot(tourDraft, options = {}) {
       endTime: schedule.endTime
     },
     stops: schedule.scheduledStops,
-    passengerLink: `https://msiatguide.web.app/?tour=${cloned.tourId || code}`
+    // Use the current Hosting origin when supplied by the caller (staging/production).
+    // Server-side/unit-test callers retain the baseline origin unless overridden.
+    passengerLink: `${String(options.passengerOrigin || 'https://msiatguide.web.app').replace(/\/$/, '')}/?tour=${encodeURIComponent(code)}`
   };
 }
 

@@ -3319,3 +3319,65 @@ h1, h2, h3, h4, p {
   box-sizing: border-box;
 }
 
+
+/* Mobile operator workflow: switch itinerary/catalog without several screens of scrolling. */
+.operator-mobile-switcher { display: none; }
+@media (max-width: 767px) {
+  .operator-mobile-switcher {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    position: sticky;
+    top: 0;
+    z-index: 15;
+    padding: 8px 0 10px;
+    margin-bottom: 8px;
+    background: var(--soft-grey);
+  }
+  .operator-mobile-switcher button {
+    min-height: 44px;
+    border: 1px solid var(--border-grey);
+    border-radius: var(--radius-sm);
+    padding: 8px 6px;
+    background: #fff;
+    color: var(--charcoal);
+    font-size: 13px;
+    font-weight: 650;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+  .operator-mobile-switcher button.active {
+    color: #fff;
+    background: var(--primary-red);
+    border-color: var(--primary-red);
+  }
+  .builder-main-grid[data-mobile-panel="itinerary"] > .library-column,
+  .builder-main-grid[data-mobile-panel="catalog"] > .workspace-column {
+    display: none;
+  }
+}
+
+/* Auth and builder overlays must stay attached to the visible viewport, not at the document end. */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.62);
+  overflow-y: auto;
+}
+.modal-backdrop > .modal-card {
+  box-sizing: border-box;
+  width: min(100%, 440px);
+  max-width: 100%;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  margin: auto;
+  padding: 22px;
+  border-radius: var(--radius-md);
+  background: var(--cloud-white);
+  box-shadow: 0 16px 50px rgba(0,0,0,0.24);
+}

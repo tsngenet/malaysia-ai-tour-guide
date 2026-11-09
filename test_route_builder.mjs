@@ -21,6 +21,7 @@ import {
   createPublishedSnapshot
 } from './src/lib/scheduleEngine.js';
 import { evaluateJourneyProgress, JOURNEY_STATUS } from './src/lib/journeyEngine.js';
+import { serializeTourStops, parseOptionalCoordinates } from './src/lib/tourSerialization.js';
 
 let passedCount = 0;
 let failedCount = 0;
@@ -465,8 +466,48 @@ runTest('Req 23: Differentiates visit time, unverified Haversine road time, and 
   assert.equal(warnings.totalPlannedMinutes, warnings.visitDurationMinutes + warnings.estimatedRoadMinutes);
 });
 
+// 24. Firestore transport must preserve the passenger's complete itinerary.
+runTest('Req 24: Cloud stop serialization preserves multi-day fields and custom narration', () => {
+  const original = [{
+    stopId: 'custom-stop', isCustom: true, title: { en: 'Driver-selected stop' },
+    durationMinutes: 35, day: 2, coordinates: null, triggerRadiusMeters: 750,
+    customNarration: { en: 'Driver-written story.' }, arrivalTime: '11:00',
+    departureTime: '11:35', travelMinutesFromPrev: 15, manualTravelMinutes: 15,
+    privateUnknownField: 'must-not-leak'
+  }];
+  const [saved] = serializeTourStops(original);
+  assert.equal(saved.day, 2);
+  assert.equal(saved.triggerRadiusMeters, 750);
+  assert.equal(saved.customNarration.en, 'Driver-written story.');
+  assert.equal(saved.arrivalTime, '11:00');
+  assert.equal(saved.manualTravelMinutes, 15);
+  assert.equal(saved.coordinates, undefined);
+  assert.equal(saved.privateUnknownField, undefined);
+});
+
+// 25. Unknown location is never given a fabricated GPS pin.
+runTest('Req 25: Optional custom stop coordinates preserve unknown versus confirmed', () => {
+  assert.deepEqual(parseOptionalCoordinates('', ''), { valid: true, coordinates: null });
+  assert.deepEqual(parseOptionalCoordinates('3.1578', '101.7119'), {
+    valid: true, coordinates: { lat: 3.1578, lng: 101.7119 }
+  });
+  for (const pair of [['3.15', ''], ['', '101.71'], ['3a', '101.71'], ['91', '101'], ['0', '0']]) {
+    assert.equal(parseOptionalCoordinates(...pair).valid, false, `Should reject ${pair}`);
+  }
+});
+
+// 26. A staging-published snapshot must use a staging passenger URL.
+runTest('Req 26: Published snapshot honors explicit hosting origin', () => {
+  const snapshot = createPublishedSnapshot({
+    tourId: 'tour-for-origin-check', code: 'MYTG-20261109-QWER',
+    title: { en: 'Test' }, startTime: '09:00', stops: []
+  }, { passengerOrigin: 'https://msiatguide-staging--staging-phase1-0kpbvc8c.web.app/' });
+  assert.equal(snapshot.passengerLink,
+    'https://msiatguide-staging--staging-phase1-0kpbvc8c.web.app/?tour=MYTG-20261109-QWER');
+});
+
 console.log('\n==================================================');
-console.log(`Results: ${passedCount} PASSED, ${failedCount} FAILED out of 23 Tests`);
+console.log(`Results: ${passedCount} PASSED, ${failedCount} FAILED out of 26 Tests`);
 console.log('==================================================');
 
 if (failedCount > 0) {

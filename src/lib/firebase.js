@@ -37,6 +37,7 @@ import {
   connectStorageEmulator
 } from 'firebase/storage';
 import { INITIAL_TOURS, DEFAULT_TOUR_ID } from '../data/tours.js';
+import { serializeTourStops } from './tourSerialization.js';
 
 // Host environment checks
 const isLocalhost = typeof window !== 'undefined' &&
@@ -296,21 +297,7 @@ export async function saveDraftTour(draft) {
     status: draft.status || 'draft',
     publicationStatus: 'draft',
     title: typeof draft.title === 'string' ? { en: draft.title } : (draft.title || { en: 'Draft Tour' }),
-    stops: (draft.stops || []).map(s => {
-      const stop = {
-        stopId: String(s.stopId || `s-${Date.now()}`),
-        durationMinutes: Number(s.durationMinutes) || 30
-      };
-      if (s.isCustom) stop.isCustom = true;
-      if (s.attractionId) stop.attractionId = s.attractionId;
-      if (s.title) stop.title = s.title;
-      if (s.type) stop.type = s.type;
-      if (s.coordinates) stop.coordinates = s.coordinates;
-      if (s.plannedArrival) stop.plannedArrival = s.plannedArrival;
-      if (s.plannedDeparture) stop.plannedDeparture = s.plannedDeparture;
-      if (s.travelTimeToNextMinutes !== undefined) stop.travelTimeToNextMinutes = s.travelTimeToNextMinutes;
-      return stop;
-    }),
+    stops: serializeTourStops(draft.stops || []),
     ...(draft.agencyId ? { agencyId: draft.agencyId } : {}),
     ...(draft.availableLanguages ? { availableLanguages: draft.availableLanguages } : {}),
     ...(draft.coordinates ? { coordinates: draft.coordinates } : {}),
@@ -370,21 +357,7 @@ export async function publishTourSnapshot(snapshot) {
     publishedAt: Timestamp.now(),
     title: typeof snapshot.title === 'string' ? { en: snapshot.title } : (snapshot.title || { en: 'Malaysia Tour' }),
     publicationStatus: 'published',
-    stops: (snapshot.stops || []).map(s => {
-      const stop = {
-        stopId: String(s.stopId || `s-${Date.now()}`),
-        durationMinutes: Number(s.durationMinutes) || 30
-      };
-      if (s.isCustom) stop.isCustom = true;
-      if (s.attractionId) stop.attractionId = s.attractionId;
-      if (s.title) stop.title = s.title;
-      if (s.type) stop.type = s.type;
-      if (s.coordinates) stop.coordinates = s.coordinates;
-      if (s.plannedArrival) stop.plannedArrival = s.plannedArrival;
-      if (s.plannedDeparture) stop.plannedDeparture = s.plannedDeparture;
-      if (s.travelTimeToNextMinutes !== undefined) stop.travelTimeToNextMinutes = s.travelTimeToNextMinutes;
-      return stop;
-    }),
+    stops: serializeTourStops(snapshot.stops || []),
     ...(snapshot.agencyId ? { agencyId: snapshot.agencyId } : {}),
     ...(snapshot.availableLanguages ? { availableLanguages: snapshot.availableLanguages } : {}),
     ...(snapshot.passengerLink ? { passengerLink: snapshot.passengerLink } : {}),

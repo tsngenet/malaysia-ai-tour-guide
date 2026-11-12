@@ -14,7 +14,10 @@ import { TourDrawer } from './components/TourDrawer.jsx';
 import { JourneyCompleteView } from './components/JourneyCompleteView.jsx';
 import { OperatorTourBuilder } from './components/OperatorTourBuilder.jsx';
 import { OperatorReviewView } from './components/OperatorReviewView.jsx';
+import { PoiMapView } from './components/PoiMapView.jsx';
+import { PoiCollectView } from './components/PoiCollectView.jsx';
 import './styles/app.css';
+import './styles/poi.css';
 
 export const SCREENS = {
   LANDING: 'LANDING',
@@ -24,7 +27,9 @@ export const SCREENS = {
   PLACE: 'PLACE',
   COMPLETED: 'COMPLETED',
   OPERATOR_BUILDER: 'OPERATOR_BUILDER',
-  OPERATOR_REVIEW: 'OPERATOR_REVIEW'
+  OPERATOR_REVIEW: 'OPERATOR_REVIEW',
+  POI_MAP: 'POI_MAP',
+  POI_COLLECT: 'POI_COLLECT'
 };
 
 function parseRouteFromUrl() {
@@ -37,6 +42,12 @@ function parseRouteFromUrl() {
 
   if (rawRoute === 'operator' || rawRoute.startsWith('operator/')) {
     return { screen: SCREENS.OPERATOR_BUILDER };
+  }
+  if (rawRoute === 'map' || rawRoute.startsWith('map/')) {
+    return { screen: SCREENS.POI_MAP };
+  }
+  if (rawRoute === 'poi' || rawRoute.startsWith('poi/')) {
+    return { screen: SCREENS.POI_COLLECT };
   }
   if (rawRoute === 'review' || rawRoute.startsWith('review/')) {
     return { screen: SCREENS.OPERATOR_REVIEW };
@@ -165,6 +176,10 @@ function App() {
       window.history.pushState(null, '', `/#/place/${pId}`);
     } else if (newScreen === SCREENS.OPERATOR_BUILDER) {
       window.history.pushState(null, '', `/#/operator`);
+    } else if (newScreen === SCREENS.POI_MAP) {
+      window.history.pushState(null, '', '/#/map');
+    } else if (newScreen === SCREENS.POI_COLLECT) {
+      window.history.pushState(null, '', '/#/poi');
     } else if (newScreen === SCREENS.OPERATOR_REVIEW) {
       window.history.pushState(null, '', `/#/review`);
     }
@@ -434,7 +449,23 @@ function App() {
         <OperatorTourBuilder
           onClose={() => navigateTo(SCREENS.LANDING)}
           onSwitchToReview={() => navigateTo(SCREENS.OPERATOR_REVIEW)}
+          onOpenMap={() => navigateTo(SCREENS.POI_MAP)}
           onOpenTour={(tourId) => navigateTo(SCREENS.WELCOME, { tourId })}
+        />
+      )}
+
+      {screen === SCREENS.POI_MAP && (
+        <PoiMapView
+          onBack={() => navigateTo(SCREENS.LANDING)}
+          onOpenCollect={() => navigateTo(SCREENS.POI_COLLECT)}
+          onOpenOperator={() => navigateTo(SCREENS.OPERATOR_BUILDER)}
+        />
+      )}
+
+      {screen === SCREENS.POI_COLLECT && (
+        <PoiCollectView
+          onBack={() => navigateTo(SCREENS.LANDING)}
+          onOpenMap={() => navigateTo(SCREENS.POI_MAP)}
         />
       )}
 

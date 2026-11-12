@@ -42,6 +42,18 @@ service firebase.storage {
       allow write: if isOwner(userId) && isValidImage();
     }
 
+    // POI media. Pending uploads: signed-in users create, only the uploader-independent staff review.
+    // Public folder: public read, reviewer/operator/admin write. Rights metadata lives in Firestore.
+    match /poi_media/pending/{poiId}/{fileName} {
+      allow read: if isAdminOrOperator() || (isAuthenticated() && request.auth.token.role == 'reviewer');
+      allow create: if isAuthenticated() && isValidImage();
+      allow update, delete: if false;
+    }
+    match /poi_media/public/{poiId}/{fileName} {
+      allow read: if true;
+      allow write: if (isAdminOrOperator() || (isAuthenticated() && request.auth.token.role == 'reviewer')) && isValidImage();
+    }
+
     // Default deny all other paths
     match /{allPaths=**} {
       allow read, write: if false;

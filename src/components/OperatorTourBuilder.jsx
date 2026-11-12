@@ -5,6 +5,8 @@ import { DESTINATIONS, ATTRACTION_CATEGORIES } from '../data/attractionSchema.js
 import { ROUTE_TEMPLATES, getRouteTemplateById } from '../data/routeTemplates.js';
 import { TOURS, DEFAULT_TOUR_ID, getToursStore, saveTourToStore } from '../data/tours.js';
 import { SUPPORTED_LANGUAGES } from '../lib/i18n.js';
+import { PoiStopPicker } from './PoiStopPicker.jsx';
+import { getPicks, clearPicks } from '../data/itineraryPicks.js';
 import { parseOptionalCoordinates } from '../lib/tourSerialization.js';
 import {
   calculateSchedule,
@@ -23,7 +25,8 @@ import {
   publishTourSnapshot
 } from '../lib/firebase.js';
 
-export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
+export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour, onOpenMap }) {
+  const [poiPicks, setPoiPicks] = useState(() => getPicks());
   // Load initial tour draft
   const [activeTour, setActiveTour] = useState(() => {
     const store = getToursStore();
@@ -425,14 +428,19 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
     setActiveTour(draft);
     saveTourToStore(draft);
 
+    setSaveMessage('Saving…');
     try {
-      await saveDraftTour(draft);
+      // Firestore queues writes while offline and the promise then never settles; surface that explicitly.
+      await Promise.race([
+        saveDraftTour(draft),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000))
+      ]);
       setSaveMessage('✓ Draft itinerary saved to secure cloud repository!');
     } catch (err) {
       console.warn('Draft sync warning:', err);
-      setSaveMessage('✓ Draft saved locally (offline)');
+      setSaveMessage('⚠️ NOT confirmed saved to the cloud: draft is kept on this device only (it may sync later if the connection returns). Check your connection and press Save Draft again.');
     }
-    setTimeout(() => setSaveMessage(''), 3500);
+    setTimeout(() => setSaveMessage(''), 9000);
   }
 
   // Publish Tour (generates immutable snapshot, tour code & cloud record)
@@ -578,7 +586,7 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
       </div>
 
       {saveMessage && (
-        <div className="alert-success-banner">
+        <div className="alert-success-banner" role="status" aria-live="polite" data-testid="save-message">
           {saveMessage}
         </div>
       )}
@@ -685,6 +693,14 @@ export function OperatorTourBuilder({ onClose, onSwitchToReview, onOpenTour }) {
                 </button>
               </div>
             </div>
+
+            <PoiStopPicker
+              nextDay={stops.length > 0 ? (stops[stops.length - 1].day || 1) : 1}
+              picks={poiPicks}
+              onClearPicks={() => { clearPicks(); setPoiPicks([]); }}
+              onOpenMap={onOpenMap}
+              onAddStops={(newStops) => setStops((prev) => [...prev, ...newStops])}
+            />
 
             {/* Duration Status & Warning Suite */}
             <div className="schedule-duration-banner">

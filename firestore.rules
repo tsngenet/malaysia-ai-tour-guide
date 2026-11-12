@@ -544,8 +544,81 @@ service cloud.firestore {
     }
 
     // ===============================================================
-    // Global Catch-all: Deny all unhandled paths
+    // (see end of file for the global catch-all)
     // ===============================================================
+    // ===============================================================
+    // POI master collection (added by the POI/map integration)
+    // Roles: any signed-in user = driver; reviewer/operator/admin via token role.
+    // Passengers (unauthenticated) may only read APPROVED POIs. They must query with
+    // where('status','==','approved'). Drafts/needs_review are visible to their creator
+    // and to reviewers/admins. Nobody can delete.
+    // ===============================================================
+
+    function poiHasName(d) {
+      return d.names is map &&
+        ((d.names.get('en', '') is string && d.names.get('en', '').size() > 0) ||
+         (d.names.get('zh', '') is string && d.names.get('zh', '').size() > 0) ||
+         (d.names.get('ms', '') is string && d.names.get('ms', '').size() > 0));
+    }
+
+    function poiHasNoPrivateKeys(d) {
+      return !d.keys().hasAny(['commission', 'driverNotes', 'privateNotes', 'private']);
+    }
+
+    match /poi_master/{poiId} {
+      allow read: if resource.data.status == 'approved' ||
+                     isReviewerOrAdmin() ||
+                     (isAuthenticated() && resource.data.createdBy == request.auth.uid);
+
+      allow create: if isAuthenticated() &&
+                       request.resource.data.id == poiId &&
+                       request.resource.data.status in ['draft', 'needs_review'] &&
+                       request.resource.data.createdBy == request.auth.uid &&
+                       poiHasName(request.resource.data) &&
+                       poiHasNoPrivateKeys(request.resource.data);
+
+      allow update: if isAuthenticated() &&
+                       request.resource.data.id == resource.data.id &&
+                       request.resource.data.createdBy == resource.data.createdBy &&
+                       poiHasName(request.resource.data) &&
+                       poiHasNoPrivateKeys(request.resource.data) &&
+                       (
+                         isReviewerOrAdmin() ||
+                         (resource.data.createdBy == request.auth.uid &&
+                          resource.data.status in ['draft', 'needs_review'] &&
+                          request.resource.data.status in ['draft', 'needs_review'])
+                       );
+
+      allow delete: if false;
+
+      match /history/{entryId} {
+        allow read: if isReviewerOrAdmin();
+        allow create: if isAuthenticated() &&
+                         request.resource.data.actor == request.auth.uid &&
+                         request.resource.data.at == request.time;
+        allow update, delete: if false;
+      }
+    }
+
+    // Raw import originals + reports (preserved, never edited by their author)
+    match /poi_imports/{importId} {
+      allow read: if isReviewerOrAdmin() ||
+                     (isAuthenticated() && resource.data.createdBy == request.auth.uid);
+      allow create: if isAuthenticated() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isReviewerOrAdmin();
+      allow delete: if false;
+    }
+
+    // Per-driver private notes and commission arrangements. Owner only: no other driver,
+    // reviewer, passenger or unauthenticated user can read them.
+    match /driver_poi_private/{uid}/pois/{poiId} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid) &&
+                               request.resource.data.suppliedBy == request.auth.uid &&
+                               request.resource.data.suppliedAt is timestamp;
+      allow delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

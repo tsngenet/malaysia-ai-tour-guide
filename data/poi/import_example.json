@@ -1,0 +1,70 @@
+{
+  "namespace": "example-2026",
+  "pois": [
+    {
+      "candidateId": "EX-001",
+      "names": {
+        "en": "Example Durian Orchard",
+        "zh": "示例榴莲园",
+        "ms": "Dusun Durian Contoh"
+      },
+      "aliases": [
+        "Example Orchard"
+      ],
+      "category": "farm",
+      "subcategory": "orchard",
+      "tags": [
+        "hidden-gem",
+        "family-friendly"
+      ],
+      "summary": {
+        "en": "Synthetic example record for import testing.",
+        "zh": "用于导入测试的示例记录。"
+      },
+      "location": {
+        "state": "Penang",
+        "city": "Balik Pulau",
+        "lat": null,
+        "lng": null,
+        "coordinateStatus": "unknown",
+        "locationNote": "Example: coordinates unknown"
+      },
+      "visit": {
+        "experienceTypes": [
+          "farm",
+          "food"
+        ],
+        "durationMinutes": 120,
+        "durationBasis": "estimate",
+        "hours": {
+          "text": "",
+          "checkedAt": ""
+        }
+      },
+      "activities": {
+        "farmTour": "confirmed",
+        "durianTasting": "confirmed",
+        "fruitPicking": "unknown",
+        "durianPicking": "unknown",
+        "seasonalNote": "Example only"
+      },
+      "sources": [
+        {
+          "name": "Operator website (example)",
+          "url": "https://example.com/orchard",
+          "type": "operator",
+          "accessedAt": "2026-11-12",
+          "supports": [
+            "farm_tour"
+          ],
+          "notes": "Synthetic"
+        }
+      ],
+      "review": {
+        "flags": [
+          "synthetic_example"
+        ]
+      }
+    }
+  ]
+}

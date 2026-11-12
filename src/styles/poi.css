@@ -1,0 +1,51 @@
+/* POI master map + collection screens. Reuses the app's China-red tokens. */
+.poi-screen { max-width: 1200px; margin: 0 auto; padding: 16px; color: var(--charcoal); background: var(--warm-cream); min-height: 100vh; box-sizing: border-box; }
+.poi-top { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: flex-start; }
+.poi-top h1 { margin: 6px 0 2px; font-size: 22px; }
+.poi-top-actions { display: flex; flex-direction: column; gap: 6px; min-width: 200px; }
+.poi-btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.poi-muted { color: var(--text-muted); font-size: 13px; }
+.poi-warn { color: #b45309; font-size: 13px; }
+.poi-error { color: var(--primary-red); font-size: 13px; font-weight: 600; }
+.poi-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 12px 0; }
+.poi-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 16px; }
+@media (max-width: 800px) { .poi-layout { grid-template-columns: 1fr; } .poi-top-actions { width: 100%; } }
+.poi-map-wrap { position: relative; border-radius: 16px; overflow: hidden; border: 2px solid #fff; box-shadow: 0 2px 10px rgba(0,0,0,.15); touch-action: none; }
+.poi-svg { display: block; width: 100%; height: auto; cursor: grab; background: #4fc3f7; }
+.poi-state { fill: #7cc576; stroke: #fff; stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: pointer; transition: fill .15s; }
+.poi-state:hover, .poi-state.active { fill: #f4b400; }
+.poi-state:focus-visible { outline: none; stroke: var(--primary-red); stroke-width: 4; }
+.poi-pin { cursor: pointer; }
+.poi-pin:focus-visible circle:first-child { stroke: var(--primary-red); stroke-width: 3; }
+.poi-zoom { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.poi-zoom button { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border-grey); background: #fff; font-size: 20px; cursor: pointer; }
+.poi-tip { position: absolute; background: #fff; border: 1px solid var(--border-grey); border-radius: 10px; padding: 8px 10px; font-size: 13px; pointer-events: none; box-shadow: 0 2px 8px rgba(0,0,0,.2); z-index: 5; max-width: 240px; }
+.poi-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; margin-top: 8px; }
+.poi-attr { font-size: 11px; }
+.poi-side { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.poi-selected { background: #fff; border: 1px solid var(--border-light); border-radius: 12px; padding: 10px; }
+.poi-statelist, .poi-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow: auto; }
+.poi-statelist button, .poi-list button { width: 100%; min-height: 44px; text-align: left; padding: 8px 12px; border: 1px solid var(--border-light); border-radius: 10px; background: #fff; cursor: pointer; font: inherit; }
+.poi-statelist button.on { border-color: var(--primary-red); background: #fff1f2; }
+.poi-count { float: right; font-weight: 700; color: var(--primary-red); }
+.poi-card { background: #fff; border: 1px solid var(--border-light); border-radius: 14px; padding: 14px; }
+.poi-card-head { display: flex; justify-content: space-between; gap: 8px; }
+.poi-card h3 { margin: 0; }
+.poi-zh { font-size: 15px; }
+.poi-row { margin: 6px 0; font-size: 14px; }
+.poi-chip { display: inline-block; border: 1px solid; border-radius: 999px; padding: 1px 8px; font-size: 12px; margin: 0 4px 4px 0; }
+.poi-chip.neutral { border-color: var(--border-grey); color: var(--charcoal-subtle); }
+.poi-chip.act-confirmed { border-color: #168A4A; color: #168A4A; }
+.poi-chip.act-unknown { border-color: var(--border-grey); color: var(--text-muted); }
+.poi-chip.act-not_offered { border-color: var(--primary-red); color: var(--primary-red); }
+.poi-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.poi-private { margin-top: 12px; padding: 10px; border: 1px dashed var(--primary-red); border-radius: 10px; background: #fff7f7; }
+.poi-textarea { height: 70px; padding: 8px; }
+.poi-tablewrap { overflow-x: auto; }
+.poi-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.poi-table th, .poi-table td { border-bottom: 1px solid var(--border-light); padding: 6px; text-align: left; vertical-align: top; }
+.poi-block { display: block; }
+.save-state { font-size: 13px; font-weight: 600; margin: 6px 0; }
+.save-state.error { color: var(--primary-red); }
+.save-state.saved { color: #168A4A; }
+.save-state.dirty, .save-state.saving { color: #b45309; }

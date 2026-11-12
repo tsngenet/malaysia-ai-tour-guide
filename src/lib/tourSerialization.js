@@ -27,7 +27,7 @@ export function serializeTourStops(stops = []) {
     'manualTravelMinutes', 'triggerRadiusMeters', 'day', 'customNarration',
     'heroVisual', 'stopIndex', 'travelMinutesFromPrev', 'isTravelEstimated',
     'arrivalMinutes', 'arrivalTime', 'visitDurationMinutes',
-    'departureMinutes', 'departureTime', 'notes'
+    'departureMinutes', 'departureTime', 'notes', 'poiRef'
   ];
   return stops.map((s, index) => {
     const result = {

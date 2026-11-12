@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
-import { TOURS, DEFAULT_TOUR_ID, getTourById, getToursStore } from './data/tours.js';
+import { TOURS, DEFAULT_TOUR_ID, getTourById, getToursStore, saveTourToStore } from './data/tours.js';
+import { decodeTour } from './data/shareCodec.js';
 import { evaluateJourneyProgress, JOURNEY_STATUS } from './lib/journeyEngine.js';
 import { getTranslation } from './lib/i18n.js';
 import { LandingPage } from './components/LandingPage.jsx';
@@ -14,7 +15,10 @@ import { TourDrawer } from './components/TourDrawer.jsx';
 import { JourneyCompleteView } from './components/JourneyCompleteView.jsx';
 import { OperatorTourBuilder } from './components/OperatorTourBuilder.jsx';
 import { OperatorReviewView } from './components/OperatorReviewView.jsx';
+import { PoiMapView } from './components/PoiMapView.jsx';
+import { PoiCollectView } from './components/PoiCollectView.jsx';
 import './styles/app.css';
+import './styles/poi.css';
 
 export const SCREENS = {
   LANDING: 'LANDING',
@@ -24,7 +28,9 @@ export const SCREENS = {
   PLACE: 'PLACE',
   COMPLETED: 'COMPLETED',
   OPERATOR_BUILDER: 'OPERATOR_BUILDER',
-  OPERATOR_REVIEW: 'OPERATOR_REVIEW'
+  OPERATOR_REVIEW: 'OPERATOR_REVIEW',
+  POI_MAP: 'POI_MAP',
+  POI_COLLECT: 'POI_COLLECT'
 };
 
 function parseRouteFromUrl() {
@@ -37,6 +43,15 @@ function parseRouteFromUrl() {
 
   if (rawRoute === 'operator' || rawRoute.startsWith('operator/')) {
     return { screen: SCREENS.OPERATOR_BUILDER };
+  }
+  if (rawRoute.startsWith('s/')) {
+    return { screen: SCREENS.WELCOME, sharedPayload: rawRoute.slice(2) };
+  }
+  if (rawRoute === 'map' || rawRoute.startsWith('map/')) {
+    return { screen: SCREENS.POI_MAP };
+  }
+  if (rawRoute === 'poi' || rawRoute.startsWith('poi/')) {
+    return { screen: SCREENS.POI_COLLECT };
   }
   if (rawRoute === 'review' || rawRoute.startsWith('review/')) {
     return { screen: SCREENS.OPERATOR_REVIEW };
@@ -105,6 +120,10 @@ function App() {
       window.history.pushState(null, '', `/#/place/${pId}`);
     } else if (newScreen === SCREENS.OPERATOR_BUILDER) {
       window.history.pushState(null, '', `/#/operator`);
+    } else if (newScreen === SCREENS.POI_MAP) {
+      window.history.pushState(null, '', `/#/map`);
+    } else if (newScreen === SCREENS.POI_COLLECT) {
+      window.history.pushState(null, '', `/#/poi`);
     } else if (newScreen === SCREENS.OPERATOR_REVIEW) {
       window.history.pushState(null, '', `/#/review`);
     }
@@ -130,6 +149,16 @@ function App() {
       window.removeEventListener('hashchange', handlePopState);
     };
   }, []);
+
+  // Passenger share link (#/s/<payload>): decode the shared itinerary, no login or backend needed.
+  const [shareError, setShareError] = useState('');
+  useEffect(() => {
+    if (!initialRoute.sharedPayload) return;
+    decodeTour(initialRoute.sharedPayload).then((t) => {
+      saveTourToStore(t);
+      setActiveTour(t);
+    }).catch(() => setShareError('This itinerary link looks incomplete or damaged. Please ask your driver to share it again.'));
+  }, [initialRoute.sharedPayload]);
 
   // Register service worker for offline / PWA support
   useEffect(() => {
@@ -215,7 +244,7 @@ function App() {
 
   return (
     <main className="app-shell">
-      {/* 1. Public Marketing Landing & Tour Code Entry */}
+      {shareError && <div role="alert" className="poi-error" style={{ padding: 12, background: '#fff' }}>{shareError}</div>}      {/* 1. Public Marketing Landing & Tour Code Entry */}
       {screen === SCREENS.LANDING && (
         <LandingPage
           onStartTourWithCode={(tourId) => navigateTo(SCREENS.WELCOME, { tourId })}
@@ -296,10 +325,26 @@ function App() {
       )}
 
       {/* 7. Operator Tour Builder */}
+      {screen === SCREENS.POI_MAP && (
+        <PoiMapView
+          onBack={() => navigateTo(SCREENS.LANDING)}
+          onOpenCollect={() => navigateTo(SCREENS.POI_COLLECT)}
+          onOpenOperator={() => navigateTo(SCREENS.OPERATOR_BUILDER)}
+        />
+      )}
+
+      {screen === SCREENS.POI_COLLECT && (
+        <PoiCollectView
+          onBack={() => navigateTo(SCREENS.LANDING)}
+          onOpenMap={() => navigateTo(SCREENS.POI_MAP)}
+        />
+      )}
+
       {screen === SCREENS.OPERATOR_BUILDER && (
         <OperatorTourBuilder
           onClose={() => navigateTo(SCREENS.LANDING)}
           onSwitchToReview={() => navigateTo(SCREENS.OPERATOR_REVIEW)}
+          onOpenMap={() => navigateTo(SCREENS.POI_MAP)}
           onOpenTour={(tourId) => navigateTo(SCREENS.WELCOME, { tourId })}
         />
       )}

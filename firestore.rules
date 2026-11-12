@@ -1,0 +1,104 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn() { return request.auth != null; }
+    function role() { return signedIn() ? request.auth.token.get('role', '') : ''; }
+    function isAdmin() { return role() == 'admin'; }
+    function isReviewer() { return role() == 'reviewer' || isAdmin(); }
+    function isDriver() { return role() == 'driver' || isAdmin(); }
+    function isStaff() {
+      return role() in ['driver', 'contributor', 'reviewer', 'admin'];
+    }
+    function isOwnerField(data) { return signedIn() && data.ownerUid == request.auth.uid; }
+
+    // A draft needs only one non-empty name (English, Chinese or Malay).
+    function hasName(d) {
+      return d.names is map
+        && ((d.names.get("en", "") is string && d.names.get("en", "").size() > 0)
+          || (d.names.get("zh", "") is string && d.names.get("zh", "").size() > 0)
+          || (d.names.get("ms", "") is string && d.names.get("ms", "").size() > 0));
+    }
+
+    // ---------- master POIs ----------
+    function validNewPoi(poiId) {
+      let d = request.resource.data;
+      return d.id == poiId
+        && hasName(d)
+        && d.status in ['draft', 'needs_review']
+        && d.createdBy == request.auth.uid;
+    }
+    function validPoiUpdate(poiId) {
+      let d = request.resource.data;
+      let old = resource.data;
+      return d.id == poiId
+        && hasName(d)
+        && d.createdBy == old.createdBy
+        && (isReviewer()
+            || (old.createdBy == request.auth.uid
+                && old.status in ['draft', 'needs_review']
+                && d.status in ['draft', 'needs_review']));
+    }
+
+    match /pois/{poiId} {
+      allow get, list: if resource.data.status == 'approved' || isStaff();
+      allow create: if isStaff() && validNewPoi(poiId);
+      allow update: if isStaff() && validPoiUpdate(poiId);
+      allow delete: if false;
+
+      // Driver notes and commission data
+      match /private/{docId} {
+        allow read: if isDriver();
+        allow create, update: if isDriver()
+          && request.resource.data.suppliedBy == request.auth.uid
+          && request.resource.data.suppliedAt is timestamp;
+        allow delete: if false;
+      }
+
+      // Append-only audit trail
+      match /history/{entryId} {
+        allow read: if isReviewer();
+        allow create: if isStaff()
+          && request.resource.data.actor == request.auth.uid
+          && request.resource.data.at == request.time;
+        allow update, delete: if false;
+      }
+    }
+
+    // ---------- raw imports and reports ----------
+    match /imports/{importId} {
+      allow read: if isStaff() && (isReviewer() || resource.data.createdBy == request.auth.uid);
+      allow create: if isStaff() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isReviewer();
+      allow delete: if false;
+    }
+
+    // ---------- driver itineraries (private working copy) ----------
+    match /itineraries/{id} {
+      allow read: if isDriver() && isOwnerField(resource.data);
+      allow create: if isDriver() && isOwnerField(request.resource.data);
+      allow update: if isDriver() && isOwnerField(resource.data)
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if false;
+    }
+
+    // ---------- passenger-facing snapshots ----------
+    function cleanShared() {
+      return !request.resource.data.keys().hasAny(['commission', 'privateNotes', 'driverNotes']);
+    }
+    match /sharedItineraries/{shareId} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if isDriver() && isOwnerField(request.resource.data) && cleanShared();
+      allow update: if isDriver() && isOwnerField(resource.data)
+        && request.resource.data.ownerUid == resource.data.ownerUid && cleanShared();
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

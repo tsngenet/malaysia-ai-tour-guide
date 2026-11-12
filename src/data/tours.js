@@ -159,14 +159,17 @@ export function getToursStore() {
   }
 }
 
+/** Returns {ok, error}. Previously failures were swallowed and the UI still said "saved". */
 export function saveTourToStore(tour) {
-  if (typeof window === 'undefined' || !tour?.tourId) return;
+  if (typeof window === 'undefined' || !tour?.tourId) return { ok: false, error: 'Nothing to save' };
   try {
     const current = getToursStore();
     current[tour.tourId] = tour;
     localStorage.setItem(TOURS_STORAGE_KEY, JSON.stringify(current));
+    return { ok: true };
   } catch (e) {
     console.error('Failed to save tour to store', e);
+    return { ok: false, error: e?.message || 'Browser storage is unavailable or full' };
   }
 }
 
